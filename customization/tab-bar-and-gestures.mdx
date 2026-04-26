@@ -1,0 +1,114 @@
+---
+title: "Tab Bar Entries and Swipe Gesture Settings"
+description: "Rearrange your Ice Cubes tab bar and configure swipe actions on posts to customize how you navigate and interact with your Mastodon feed."
+---
+
+Ice Cubes lets you rearrange the five slots in the iOS tab bar and assign custom swipe gestures to posts, so common actions like boosting or favoriting are always one flick away. Both sets of settings live in **Settings › General** and are persisted via `@AppStorage`.
+
+## Tab bar customization
+
+The iOS tab bar has exactly five slots, managed by the `iOSTabs` class in `Tabs.swift`. Each slot maps to an `AppTab` case and is stored independently:
+
+| Slot | Storage key | Default |
+|---|---|---|
+| First | `first` | `.timeline` |
+| Second | `second` | `.notifications` |
+| Third | `third` | `.explore` |
+| Fourth | `fourth` | `.links` |
+| Fifth | `fifth` | `.profile` |
+
+Open **Settings › General › Tab bar entries** to reassign any slot. The picker filters out tabs already used in other slots so each tab appears at most once.
+
+### Available tabs
+
+Every case in the `AppTab` enum can be placed in a tab slot:
+
+<AccordionGroup>
+  <Accordion title="Timeline and feeds">
+    | Case | Icon | Description |
+    |---|---|---|
+    | `.timeline` | `rectangle.stack` | Home timeline |
+    | `.trending` | `chart.line.uptrend.xyaxis` | Trending posts |
+    | `.local` | `person.2` | Local instance timeline |
+    | `.federated` | `globe.americas` | Federated timeline |
+    | `.links` | `newspaper` | Trending links |
+  </Accordion>
+
+  <Accordion title="Activity">
+    | Case | Icon | Description |
+    |---|---|---|
+    | `.notifications` | `bell` | All notifications |
+    | `.mentions` | `at` | Mentions only |
+    | `.messages` | `tray` | Direct messages |
+  </Accordion>
+
+  <Accordion title="Account">
+    | Case | Icon | Description |
+    |---|---|---|
+    | `.profile` | `person.crop.circle` | Your profile |
+    | `.bookmarks` | `bookmark` | Saved bookmarks |
+    | `.favorites` | `star` | Favorited posts |
+    | `.metrics` | `chart.bar` | Account metrics |
+    | `.followedTags` | `tag` | Followed hashtags |
+    | `.lists` | `list.bullet` | Custom lists |
+  </Accordion>
+
+  <Accordion title="Other">
+    | Case | Icon | Description |
+    |---|---|---|
+    | `.explore` | `magnifyingglass` | Explore / search |
+    | `.post` | `square.and.pencil` | Quick-compose button |
+    | `.settings` | `gear` | App settings |
+  </Accordion>
+</AccordionGroup>
+
+## Swipe gesture configuration
+
+Swipe actions are configured in **Settings › General › Swipe actions**, backed by four `StatusAction` properties on `UserPreferences`:
+
+| Property | Direction | Default |
+|---|---|---|
+| `swipeActionsStatusLeadingLeft` | Right-swipe, primary | `.reply` |
+| `swipeActionsStatusLeadingRight` | Right-swipe, secondary | `.none` |
+| `swipeActionsStatusTrailingRight` | Left-swipe, primary | `.favorite` |
+| `swipeActionsStatusTrailingLeft` | Left-swipe, secondary | `.boost` |
+
+<Note>
+Setting a primary action to `.none` automatically resets the corresponding secondary action to `.none` as well, since a secondary action cannot exist without a primary.
+</Note>
+
+### Available swipe actions
+
+All assignable actions come from the `StatusAction` enum in the `Env` package:
+
+| Case | Description |
+|---|---|
+| `.none` | No action (disables the slot) |
+| `.reply` | Opens the reply composer |
+| `.boost` | Boosts (reblogs) the post |
+| `.favorite` | Favorites the post |
+| `.bookmark` | Bookmarks the post |
+| `.quote` | Opens the quote-post composer |
+
+### Swipe action appearance
+
+Two additional preferences control how swipe action indicators look:
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `swipeActionsIconStyle` | `UserPreferences.SwipeActionsIconStyle` | `.iconWithText` | `.iconWithText` shows a label; `.iconOnly` shows only the symbol |
+| `swipeActionsUseThemeColor` | `Bool` | `false` | Uses the current theme tint for all swipe indicators instead of per-action colors |
+
+## Haptic feedback
+
+Haptic feedback is controlled by three independent toggles in **Settings › General › Haptic feedback**, each stored in `UserPreferences`:
+
+| Property | Storage key | Default | Trigger |
+|---|---|---|---|
+| `hapticTimelineEnabled` | `haptic_timeline` | `true` | Scrolling past unread markers in the timeline |
+| `hapticTabSelectionEnabled` | `haptic_tab` | `true` | Tapping a tab bar item |
+| `hapticButtonPressEnabled` | `haptic_button_press` | `true` | Pressing action buttons (boost, favorite, etc.) |
+
+## Sound effects
+
+A single toggle, `UserPreferences.soundEffectEnabled` (key: `sound_effect_enabled`, default `true`), enables or disables all in-app sound effects. Disable it to use Ice Cubes silently regardless of the system ringer setting.

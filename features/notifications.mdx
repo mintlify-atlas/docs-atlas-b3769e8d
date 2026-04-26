@@ -1,0 +1,65 @@
+---
+title: "Notifications and Push Alerts in Ice Cubes"
+description: "Ice Cubes delivers rich, grouped push notifications via a privacy-preserving proxy, decoded on-device, with full control over alert types."
+---
+
+Ice Cubes provides a complete notification experience: real-time in-app updates delivered via the Mastodon streaming API, and push notifications that reach you even when the app is closed. Both paths are privacy-first — push notification content is never readable by any server other than your own device.
+
+## Notification types
+
+Ice Cubes handles every notification type the Mastodon API exposes:
+
+<CardGroup cols={2}>
+  <Card title="Mentions" icon="at">
+    Someone mentioned your account in a post. Mention rows receive a distinct background color in the notifications list to make them easy to spot.
+  </Card>
+  <Card title="Favorites" icon="star.fill">
+    Someone favorited one of your posts. Displayed with a yellow tint.
+  </Card>
+  <Card title="Boosts" icon="arrow.2.squarepath">
+    Someone boosted (reblogged) one of your posts. Displayed with a teal tint.
+  </Card>
+  <Card title="Follows" icon="person.fill.badge.plus">
+    Someone followed your account. Displayed with a cyan tint. Follow request notifications include inline approve / deny buttons.
+  </Card>
+  <Card title="Polls" icon="chart.bar.fill">
+    A poll you voted in or created has ended.
+  </Card>
+  <Card title="Quotes" icon="quote.bubble.fill">
+    Someone quoted one of your posts. Ice Cubes also surfaces `quoted_update` notifications when a quoted post is subsequently edited.
+  </Card>
+</CardGroup>
+
+You can filter the in-app notifications list to any single type using the title bar menu. Tap the navigation title and select a type to see only those events. Tap "All notifications" to return to the combined view.
+
+## Privacy-preserving push proxy
+
+Mastodon requires an intermediary to route push notifications to Apple's push notification service (APNs). Ice Cubes runs its own proxy server so you are not dependent on a third party controlled by the instance you connect to.
+
+The proxy is a **relay only** — it forwards encrypted push payloads to APNs without being able to read them. Notification content is encrypted using Web Push encryption before it leaves the Mastodon server, and it is **decrypted on your device** inside the `NotificationService` app extension (`IceCubesNotifications`). The extension decodes the payload, formats the notification, and hands it to the system — the proxy never has access to the plaintext.
+
+<Info>
+  The notification service extension is a separate process from the main app. It runs in the background, intercepts incoming pushes, and can enrich them with contact photos before they appear on-screen.
+</Info>
+
+## Rich notifications with contact photos
+
+Ice Cubes uses Apple's **`INSendMessageIntent`** API to attach the sender's avatar to push notifications. When the notification service extension processes an incoming push, it downloads the account's avatar and sets it as the communication intent's image. iOS uses this to display the avatar as a large contact photo in the notification banner and on the lock screen.
+
+Notifications are also **grouped by type** — favorites from multiple people collapse into a single banner rather than flooding your notification centre.
+
+## In-app notification grouping
+
+Inside the app, notifications are consolidated using `ConsolidatedNotification`. When multiple accounts perform the same action on the same post within a short window (for example, ten people favoriting the same status), they are stacked into a single row. The row shows all involved avatars when there is only one participant, or a type icon when several accounts are grouped together.
+
+The notifications list updates live via `StreamWatcher`. When a new notification event arrives over the streaming connection, `handleStreamEvent` prepends the new consolidated notification to the top of the list without a full reload.
+
+## Filtering which alerts you receive
+
+You can choose exactly which push notification types Ice Cubes sends to your device from the **Push Notifications** settings screen. This calls the Mastodon push subscription API to update your subscription's alert flags on the server. Changes take effect for the next push notification.
+
+Instances that support the Mastodon notification filtering policy API expose an additional **Notification policy** sheet (`NotificationsPolicyView`), accessible from the notification title bar menu. This lets you suppress notifications from accounts you do not follow, new accounts, or accounts with limited visibility.
+
+## Account routing
+
+Tapping a push notification opens Ice Cubes and routes you directly to the relevant post, switching to the correct account automatically if the notification belongs to a secondary account. This is handled by matching the notification payload to the appropriate `AppAccount` entry and calling the router to navigate to the post or profile.

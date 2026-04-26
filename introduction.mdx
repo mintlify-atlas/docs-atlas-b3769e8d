@@ -1,0 +1,69 @@
+---
+title: "Ice Cubes for Mastodon — What You Need to Know"
+description: "Ice Cubes is an open-source SwiftUI Mastodon client for iOS, iPadOS, macOS, and visionOS. Free on the App Store, licensed AGPL-3.0."
+---
+
+Ice Cubes is a free, open-source application for accessing Mastodon, the decentralized social network. Built entirely in SwiftUI, it runs natively on iOS, iPadOS, macOS, and visionOS. You can connect to any Mastodon instance, browse your timeline, interact with other users, and post updates and media — all from a fast, lightweight native app that feels at home on every Apple platform.
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Timeline" icon="list" href="/features/timeline">
+    Switch between home, local, federated, and trending timelines. Tag groups, remote local timelines, real-time streaming, and iCloud position sync are unique to Ice Cubes.
+  </Card>
+  <Card title="Composer" icon="pen" href="/features/composer">
+    Write threads up to 5 posts, attach up to 4 images, add polls and content warnings, and use AI-assisted tools powered by the OpenAI API for text correction and hashtag generation.
+  </Card>
+  <Card title="Notifications" icon="bell" href="/features/notifications">
+    Full push notification support via a privacy-preserving custom proxy. Notifications are rich, grouped by activity type, and decoded entirely on-device.
+  </Card>
+  <Card title="Explore" icon="magnifying-glass" href="/features/explore">
+    Dedicated search tab for trending users, tags, posts, and links. Filter results by category and view activity graphs for trending hashtags.
+  </Card>
+  <Card title="Direct Messages" icon="envelope" href="/features/direct-messages">
+    A dedicated tab for private conversations with a chat-style UI. Use the inline composer for quick replies or the full editor for longer messages.
+  </Card>
+  <Card title="Customization" icon="sliders" href="/customization/themes">
+    Choose from many built-in themes or create your own. Tweak fonts, line spacing, status action buttons, swipe gestures, and tab bar entries. Sound and haptic feedback included.
+  </Card>
+  <Card title="Multi-Account" icon="users" href="/accounts/multi-account">
+    Add an unlimited number of Mastodon accounts. Tokens are stored securely in the system keychain using Apple's `WebAuthenticationSession`. Switch accounts from any screen.
+  </Card>
+  <Card title="Widgets" icon="grid-2" href="/extensions/widgets">
+    Home screen widgets for your timeline, mentions, hashtag posts, and accounts — powered by the WidgetsExtension target.
+  </Card>
+</CardGroup>
+
+## Platform support
+
+Ice Cubes runs on all modern Apple platforms from a single codebase:
+
+| Platform | Notes |
+|----------|-------|
+| **iOS** | Full feature set on iPhone |
+| **iPadOS** | Dedicated sidebar UI for larger screens |
+| **macOS** | Native Mac app with sidebar navigation |
+| **visionOS** | Runs on Apple Vision Pro |
+
+The app uses a dedicated sidebar layout on macOS and iPadOS, making the most of the available screen real estate on those platforms.
+
+## Architecture
+
+Ice Cubes is organized into independent Swift packages under `/Packages/`, each responsible for a specific slice of the application — network communication, data models, UI components, theming, and more. This modular structure makes the codebase easier to navigate, maintain, and contribute to.
+
+The app follows a modern SwiftUI architecture: views are pure state expressions using SwiftUI's native property wrappers (`@State`, `@Binding`, `@Observable`, `@Environment`), with no ViewModels for new code. All asynchronous work uses Swift's `async/await` concurrency model.
+
+<Note>
+  Ice Cubes is a great starting point for learning SwiftUI. The codebase covers building layouts, working with data, handling user interaction, and real-world patterns across a production app.
+</Note>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Build from source" icon="hammer" href="/building-the-project">
+    Clone the repo and compile Ice Cubes in Xcode with your own Developer Team ID.
+  </Card>
+  <Card title="Contribute" icon="code-pull-request" href="/contributing">
+    Learn about the package structure, code style, and how to submit a pull request.
+  </Card>
+</CardGroup>

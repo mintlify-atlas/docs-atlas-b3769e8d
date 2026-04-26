@@ -1,0 +1,124 @@
+---
+title: "Home Screen Widgets for Ice Cubes"
+description: "Add Ice Cubes widgets to your iPhone, iPad, or Mac home screen: latest posts, mentions, hashtag feeds, list timelines, and account info."
+---
+
+Ice Cubes includes a suite of home screen widgets that keep your Mastodon content visible at a glance without opening the app. Each widget is powered by App Intents, so you can configure your account, timeline, list, or hashtag directly from the widget editing interface.
+
+## Available widgets
+
+<AccordionGroup>
+  <Accordion title="Latest posts">
+    Displays the most recent posts from a timeline you choose. Supports your home timeline, local timeline, federated timeline, or any other timeline filter available in Ice Cubes.
+
+    **Supported sizes:** Small, Medium, Large, Extra Large
+
+    **Configuration:** Account, Timeline
+
+    - Small and Medium show the single most recent post.
+    - Large and Extra Large show up to five recent posts.
+    - Boosts and posts with no text content are filtered out automatically.
+  </Accordion>
+
+  <Accordion title="Mentions">
+    Shows your most recent @-mentions so you can see who has replied to or tagged you without launching the app.
+
+    **Supported sizes:** Large, Extra Large
+
+    **Configuration:** Account
+
+    The widget fetches up to five recent mention notifications and displays the post content alongside the author's avatar.
+  </Accordion>
+
+  <Accordion title="Hashtag timeline">
+    Streams the latest public posts for any hashtag you specify.
+
+    **Supported sizes:** Small, Medium, Large, Extra Large
+
+    **Configuration:** Account, Hashtag
+
+    Enter any hashtag (without the `#` prefix) when configuring the widget. The widget title displays the tag prefixed with `#`.
+  </Accordion>
+
+  <Accordion title="List timeline">
+    Shows the most recent posts from one of your Mastodon lists.
+
+    **Supported sizes:** Small, Medium, Large, Extra Large
+
+    **Configuration:** Account, List
+
+    Your available lists are fetched from the selected account and presented as a picker during widget configuration.
+  </Accordion>
+
+  <Accordion title="Account">
+    Displays your profile avatar and your current follower count at a glance.
+
+    **Supported sizes:** Small only
+
+    **Configuration:** Account
+
+    The widget verifies credentials on each refresh so the follower count stays current.
+  </Accordion>
+</AccordionGroup>
+
+## How to add a widget
+
+<Steps>
+  <Step title="Enter edit mode">
+    On iPhone or iPad, long-press an empty area of your home screen until the icons start to jiggle. On Mac (Sonoma or later), Control-click the desktop and choose **Edit Widgets**.
+  </Step>
+  <Step title="Open the widget gallery">
+    Tap or click the **+** button in the top-left corner to open the widget gallery.
+  </Step>
+  <Step title="Find Ice Cubes">
+    Scroll through the list or type **Ice Cubes** in the search field.
+  </Step>
+  <Step title="Choose a widget and size">
+    Select the widget type you want (Latest posts, Mentions, etc.) and swipe through the available size options, then tap **Add Widget**.
+  </Step>
+  <Step title="Configure the widget">
+    Tap the newly placed widget while still in edit mode (or long-press it later and choose **Edit Widget**) to set the account, timeline, hashtag, or list for that widget.
+  </Step>
+</Steps>
+
+## Widget configuration
+
+Each widget uses App Intents to present a native configuration UI. The parameters available depend on the widget type:
+
+| Widget | Account | Timeline | Hashtag | List |
+|---|---|---|---|---|
+| Latest posts | Required | Required | — | — |
+| Mentions | Required | — | — | — |
+| Hashtag timeline | Required | — | Required | — |
+| List timeline | Required | — | — | Required |
+| Account | Required | — | — | — |
+
+Tap a widget and choose **Edit Widget** to change any of these settings at any time. If you have multiple Mastodon accounts in Ice Cubes, the Account picker lists all of them.
+
+## Supported widget sizes
+
+Widget size support varies by widget type. The table below maps each widget to the WidgetKit family it supports, as declared in the source:
+
+| Widget | Small | Medium | Large | Extra Large |
+|---|---|---|---|---|
+| Latest posts | Yes | Yes | Yes | Yes |
+| Mentions | — | — | Yes | Yes |
+| Hashtag timeline | Yes | Yes | Yes | Yes |
+| List timeline | Yes | Yes | Yes | Yes |
+| Account | Yes | — | — | — |
+
+<Note>
+  Extra Large widgets are available on iPad home screens and on Mac (macOS Sonoma and later).
+</Note>
+
+## App Intents integration
+
+Ice Cubes ships an `IceCubesAppIntents` target that exposes Siri and Shortcuts actions alongside the widget configuration intents. The available App Shortcuts let you:
+
+- **Compose a post** — open the Ice Cubes composer, optionally pre-filled with text passed from a previous Shortcut step.
+- **Send a post (inline)** — send a post entirely within a Shortcut without opening the app.
+- **Send image(s) (background)** — attach one or more photos and post them without switching to the app.
+- **Post a status with an image** — open the composer pre-loaded with a photo.
+- **Open Ice Cubes on a tab** — navigate directly to a specific tab such as Home Timeline, Notifications, Mentions, Explore, Bookmarks, Favorites, Lists, or Trending Links.
+
+All intents are available in the Shortcuts app and can be invoked via Siri using natural phrases such as "Post in Ice Cubes" or "Open Ice Cubes."

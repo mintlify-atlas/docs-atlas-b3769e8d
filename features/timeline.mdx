@@ -1,0 +1,69 @@
+---
+title: "Timeline: Home, Local, and Federated Feeds"
+description: "Browse and manage your Mastodon timelines in Ice Cubes, with real-time streaming, unread counters, tag groups, and iCloud position sync."
+---
+
+The timeline is the heart of Ice Cubes. It surfaces posts from your home feed, your local instance, the wider Fediverse, and trending content — all switchable from a single navigation bar menu without leaving the screen you're on. A persistent unread counter and background caching mean you can close the app and return exactly where you left off, on any of your devices.
+
+## Timeline types
+
+Tap the navigation bar title to open the timeline menu. From there you can switch between four built-in feeds:
+
+<CardGroup cols={2}>
+  <Card title="Home" icon="house">
+    Posts from accounts you follow, delivered via the Mastodon home timeline API (`timelines/home`). Supports real-time streaming so new posts appear live.
+  </Card>
+  <Card title="Local" icon="person.2">
+    Public posts from accounts on your own instance (`timelines/public?local=true`). Good for keeping up with your community.
+  </Card>
+  <Card title="Federated" icon="globe.americas">
+    All public posts known to your instance (`timelines/public?local=false`). A firehose of the wider Fediverse.
+  </Card>
+  <Card title="Trending" icon="chart.line.uptrend.xyaxis">
+    Posts that are gaining traction right now, fetched from the Trends API. Accessible even when you are not signed in.
+  </Card>
+</CardGroup>
+
+The same menu also surfaces your **lists** and **followed tags**, both fetched at launch via `CurrentAccount.fetchLists()`. You can pin any filter to the tab bar so it stays a single tap away.
+
+## Tag groups
+
+Tag groups are a feature unique to Ice Cubes. A tag group is a named collection of hashtags that is treated as a single, merged timeline. Under the hood, the first tag is used as the primary feed (`timelines/tag/<tag>`) and all additional tags are passed as `any[]` query parameters so the server merges the streams server-side.
+
+Tag groups are stored in SwiftData and **synced to iCloud**, so a group you create on your iPhone is immediately available on your iPad or Mac. You can create a group from the timeline menu or from Settings → Tag Groups.
+
+<Tip>
+  Tag groups are ideal for following a topic that spans multiple hashtags — for example, combining `#swift`, `#swiftlang`, and `#swiftui` into one "Swift Development" feed.
+</Tip>
+
+## Remote local timelines
+
+You can add any Mastodon instance as a remote local timeline and browse its public posts as if you were a member. This lets you lurk in communities on other servers without creating an account there.
+
+Remote timelines are also **iCloud synced** and persist across launches. Each remote timeline entry stores the instance hostname. When selected, Ice Cubes connects to that server's public timeline endpoint directly, and the toolbar shows a filter menu to switch between local, federated, and trending views for that instance.
+
+## Real-time streaming and unread counter
+
+Ice Cubes subscribes to Mastodon's streaming API (`StreamWatcher`) so that new posts appear in the home timeline without a manual refresh. When new posts arrive while you are scrolled down, an unread counter badge appears at the top. Tapping it scrolls you to the latest content.
+
+The `TimelineUnreadStatusesObserver` actor tracks which post IDs have been seen and updates the badge count as streaming events arrive. Sound and haptic feedback fire on pull-to-refresh (`SoundEffectManager`, `HapticManager`).
+
+## Caching and position sync
+
+The home timeline is cached locally using [Bodega](https://github.com/mergesort/Bodega), a lightweight SQLite wrapper. Your scroll position is saved to `UserDefaults` so the timeline reopens at the same post after a relaunch or an account switch.
+
+Position is also synced across devices using the **Mastodon Marker API**. When you open Ice Cubes on a second device, you can choose to resume from the marker saved by the first device rather than starting at the top. The "Resume" option in the timeline title menu triggers this behaviour, loading `timelines/home` from the stored marker position.
+
+## Server-side filters
+
+Ice Cubes applies the **server-side filters** configured in your Mastodon account settings. Filtered posts are hidden or replaced with a warning in the timeline, depending on the filter action you chose on the server. The filter context maps to the timeline type: home and list timelines use the `.home` context, while public timelines use the `.pub` context.
+
+## Lists and followed tags
+
+Your Mastodon lists appear in the timeline menu under a dedicated submenu. Selecting a list loads `timelines/list/<id>`. You can create and edit lists directly from the toolbar when a list timeline is active.
+
+Followed tags appear in a separate submenu. Tapping a tag loads `timelines/tag/<tag>` for that hashtag.
+
+## Quote posts
+
+Ice Cubes supports **quote posts** — a non-standard Mastodon extension that embeds a reference to another post inside yours. Quoted posts appear as an embedded card in the timeline row. A dedicated `TimelineFilter.quotes(statusId:)` filter lets you view all quotes of a specific post via the `Statuses.quotesBy` endpoint.

@@ -1,0 +1,127 @@
+---
+title: "Themes and Color Schemes in Ice Cubes"
+description: "Ice Cubes ships with 14 built-in color sets including IceCube, Desert, Nemesis, and Threads themes, plus support for fully custom themes."
+---
+
+Ice Cubes gives you full control over the app's appearance through a flexible theme system. You can choose from 14 curated built-in color sets spanning dark and light variants, or override individual colors to create a completely custom look. All theme choices persist across launches via `@AppStorage` and can optionally follow the system's light/dark preference.
+
+## Built-in color sets
+
+Ice Cubes ships with seven color set pairs, each offering a dark and light variant. All 14 sets are exposed through `Theme.allColorSet` in the `DesignSystem` package.
+
+<AccordionGroup>
+  <Accordion title="IceCube (default)">
+    The app's signature theme. A deep navy background with a vivid purple tint.
+
+    | Variant | Type name | Scheme |
+    |---|---|---|
+    | Dark | `IceCubeDark` | `.iceCubeDark` |
+    | Light | `IceCubeLight` | `.iceCubeLight` |
+  </Accordion>
+
+  <Accordion title="IceCube Neon">
+    A higher-contrast take on the default theme. Uses a pure-black background in dark mode and a brighter magenta tint.
+
+    | Variant | Type name | Scheme |
+    |---|---|---|
+    | Dark | `IceCubeNeonDark` | `.iceCubeNeonDark` |
+    | Light | `IceCubeNeonLight` | `.iceCubeNeonLight` |
+  </Accordion>
+
+  <Accordion title="Desert">
+    Warm sandy tones with an orange-brown tint (`#DF915E`). The dark variant uses a muted purple-gray background.
+
+    | Variant | Type name | Scheme |
+    |---|---|---|
+    | Dark | `DesertDark` | `.desertDark` |
+    | Light | `DesertLight` | `.desertLight` |
+  </Accordion>
+
+  <Accordion title="Nemesis">
+    A high-contrast blue theme (`#17A2F2`) inspired by classic Twitter clients, with a pure black dark background.
+
+    | Variant | Type name | Scheme |
+    |---|---|---|
+    | Dark | `NemesisDark` | `.nemesisDark` |
+    | Light | `NemesisLight` | `.nemesisLight` |
+  </Accordion>
+
+  <Accordion title="Medium">
+    A clean reading-focused theme with a green tint (`#1A8917`) and near-black dark background, similar to the Medium publishing platform.
+
+    | Variant | Type name | Scheme |
+    |---|---|---|
+    | Dark | `MediumDark` | `.mediumDark` |
+    | Light | `MediumLight` | `.mediumLight` |
+  </Accordion>
+
+  <Accordion title="Constellation">
+    A stargazing-inspired theme. The dark variant uses a deep blue background (`#09192C`) with a golden tint (`#FFD966`); the light variant switches to a crimson tint (`#C82238`).
+
+    | Variant | Type name | Scheme |
+    |---|---|---|
+    | Dark | `ConstellationDark` | `.constellationDark` |
+    | Light | `ConstellationLight` | `.constellationLight` |
+  </Accordion>
+
+  <Accordion title="Threads">
+    Mirrors the visual style of the Threads app. Near-black backgrounds in dark mode with a blue tint (`#0095F6`).
+
+    | Variant | Type name | Scheme |
+    |---|---|---|
+    | Dark | `ThreadsDark` | `.threadsDark` |
+    | Light | `ThreadsLight` | `.threadsLight` |
+  </Accordion>
+</AccordionGroup>
+
+## Applying a color set
+
+Call `Theme.applySet(set:)` to switch to any built-in color set at runtime. This updates `selectedSet`, then calls `setColor(withName:)` to write the individual colors into `@AppStorage`.
+
+```swift
+// Switch to the Nemesis dark theme
+Theme.shared.applySet(set: .nemesisDark)
+
+// Switch to Desert light
+Theme.shared.applySet(set: .desertLight)
+```
+
+`setColor(withName:)` resolves the matching `ColorSet` from `Theme.allColorSet`, then assigns `tintColor`, `primaryBackgroundColor`, `secondaryBackgroundColor`, and `labelColor` on the shared `Theme` instance.
+
+## Creating a custom theme
+
+When `followSystemColorScheme` is disabled, you can override each color independently using the color pickers in **Settings › Display**. The four editable properties map directly to `Theme` stored properties:
+
+| Property | `@AppStorage` key | Description |
+|---|---|---|
+| `tintColor` | `tint` | Accent color for interactive elements |
+| `primaryBackgroundColor` | `primaryBackground` | Main timeline background |
+| `secondaryBackgroundColor` | `secondaryBackground` | Cards, sidebars, form rows |
+| `labelColor` | `label` | Primary text color |
+
+Any change to `tintColor`, `primaryBackgroundColor`, or `labelColor` automatically recalculates `contrastingTintColor` so that text on tinted buttons remains legible.
+
+<Note>
+Custom color overrides are disabled while `followSystemColorScheme` is `true`. Toggle it off in **Settings › Display › Theme** to unlock the color pickers.
+</Note>
+
+## Following the system color scheme
+
+The `followSystemColorScheme` property (stored under the `followSystemColorSchme` key for legacy reasons) instructs Ice Cubes to automatically switch between the dark and light variants of the currently selected color set pair whenever iOS dark mode changes.
+
+```swift
+// Enable automatic light/dark switching
+Theme.shared.followSystemColorScheme = true
+
+// Lock to a specific scheme regardless of system setting
+Theme.shared.followSystemColorScheme = false
+Theme.shared.applySet(set: .nemesisDark)
+```
+
+When this is enabled, the color pickers in Display Settings are disabled and shown at 50 % opacity.
+
+## Alternate app icons
+
+Ice Cubes includes more than 40 alternate app icons, selectable from **Settings › App Icon**. Icons are contributed by the community and grouped by designer in `IconSelectorView`. The icon assets live in `AlternateIcons/` at the repository root and are registered as `AppIconAlternate1` through `AppIconAlternate49`.
+
+Icons are applied at runtime using `UIApplication.shared.setAlternateIconName(_:)`. The primary icon is restored by passing `nil`.

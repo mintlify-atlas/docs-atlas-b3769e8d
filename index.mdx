@@ -1,133 +1,67 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
-icon: 'star'
+title: "Ice Cubes: Open-Source SwiftUI Mastodon Client"
+description: "Ice Cubes is a free, open-source Mastodon client built in SwiftUI for iPhone, iPad, Mac, and Apple Vision Pro — with themes, widgets, and AI tools."
 ---
 
-## Setting up
+Ice Cubes is a free, open-source Mastodon client crafted entirely in SwiftUI. It runs natively on iOS, iPadOS, macOS, and visionOS, offering a rich social experience with deep customization, real-time streaming, multi-account support, and home screen widgets.
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Get Started" icon="rocket" href="/introduction">
+    Learn what Ice Cubes is and how to get it on your device
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Build from Source" icon="hammer" href="/building-the-project">
+    Clone the repo and compile Ice Cubes with Xcode
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Core Features" icon="star" href="/features/timeline">
+    Explore the timeline, composer, notifications, and more
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Customization" icon="palette" href="/customization/themes">
+    Themes, fonts, gestures, and display settings
   </Card>
-</Columns>
+  <Card title="Multi-Account" icon="users" href="/accounts/multi-account">
+    Manage multiple Mastodon accounts securely
+  </Card>
+  <Card title="Architecture" icon="cubes" href="/architecture/overview">
+    Understand the modular Swift package structure
+  </Card>
+</CardGroup>
 
-## Create beautiful pages
+## What makes Ice Cubes special
 
-Everything you need to create world-class documentation.
+Ice Cubes is designed to feel like a first-party Apple app — fast, native, and accessible across every Apple platform. It goes beyond the basics with features like tag groups (custom multi-hashtag timelines), remote local timelines, AI-assisted post composition, and a privacy-preserving push notification proxy.
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+<CardGroup cols={2}>
+  <Card title="Real-time Timeline" icon="bolt" href="/features/timeline">
+    Live streaming updates, unread counters, and iCloud position sync
   </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
+  <Card title="AI-Powered Composer" icon="wand-magic-sparkles" href="/features/composer">
+    OpenAI-assisted text correction, hashtag suggestions, and alt text generation
   </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
+  <Card title="Rich Push Notifications" icon="bell" href="/accounts/push-notifications">
+    Grouped, rich notifications via a privacy-first custom proxy
   </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
+  <Card title="Home Screen Widgets" icon="grid-2" href="/extensions/widgets">
+    Timeline, mentions, hashtag posts, and account widgets
   </Card>
-</Columns>
+</CardGroup>
 
-## Make your content agent ready
+## Getting started
 
-Make your docs work for humans and AI agents alike.
+<Steps>
+  <Step title="Download Ice Cubes">
+    Get Ice Cubes free from the [App Store](https://apps.apple.com/us/app/ice-cubes-for-mastodon/id6444915884) on your iPhone, iPad, Mac, or Apple Vision Pro.
+  </Step>
+  <Step title="Sign in to your Mastodon account">
+    Open Ice Cubes, browse and select your Mastodon instance, and sign in securely using Apple's WebAuthenticationSession. Your access token is stored in the system keychain.
+  </Step>
+  <Step title="Explore your timeline">
+    Your home timeline loads immediately with cached posts. Switch between home, local, federated, and trending timelines from the navigation bar title menu.
+  </Step>
+  <Step title="Customize your experience">
+    Head to Settings to choose a theme, adjust fonts and spacing, configure swipe gestures, and set up push notifications.
+  </Step>
+</Steps>
 
-<Columns cols={2}>
-  <Card
-    title="Prompt component"
-    icon="robot"
-    href="/agent-ready/prompt"
-  >
-    Embed shareable AI prompts readers can copy or open in Cursor.
-  </Card>
-  <Card
-    title="Visibility"
-    icon="eye"
-    href="/agent-ready/visibility"
-  >
-    Show different content to humans and agents reading your docs.
-  </Card>
-  <Card
-    title="Contextual menu"
-    icon="bolt"
-    href="/agent-ready/contextual"
-  >
-    Give readers one-click access to Claude, ChatGPT, Cursor, and more.
-  </Card>
-  <Card
-    title="AI coding tools"
-    icon="wand-magic-sparkles"
-    href="/ai-tools/claude-code"
-  >
-    Set up Claude Code, Cursor, or Windsurf with Mintlify's skill.
-  </Card>
-</Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<Note>
+  Ice Cubes is licensed under AGPL-3.0 and welcomes open-source contributions. See the [Contributing guide](/contributing) to get involved.
+</Note>

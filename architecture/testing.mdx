@@ -1,0 +1,235 @@
+---
+title: "Testing Strategy and Test Schemes in Ice Cubes"
+description: "Ice Cubes has per-package XCTest test suites covering models, networking, timeline logic, and environment state, runnable via Xcode or CLI."
+---
+
+Ice Cubes organizes its tests into one scheme per Swift Package, so you can run targeted tests for just the layer you changed without building the entire app. The project uses a mix of Swift Testing (`@Test`, `#expect`) for newer test files and XCTest (`XCTestCase`) for legacy ones. Visual behavior is covered by SwiftUI Previews rather than snapshot tests.
+
+## Available test schemes
+
+<AccordionGroup>
+  <Accordion title="AccountTests">
+    Tests for the `Account` package, which covers user profile views and account management. The `AccountMetricsStoreTests` suite verifies the `AccountMetricsStore` SwiftData layer used for notification metrics — insert, upsert, and time-based pruning of `MetricsNotificationGroup` records.
+  </Accordion>
+  <Accordion title="ModelsTests">
+    Tests for the `Models` package: data models and Mastodon API structures. Covers `HTMLString` parsing (raw text extraction, Markdown conversion, link detection, special-character URL encoding, markdown escaping, trailing hashtag removal, and `quote-inline` paragraph stripping) and `Quote` decoding (for example, gracefully ignoring an invalid `quoted_status` field).
+  </Accordion>
+  <Accordion title="NetworkTests">
+    Tests for the `NetworkClient` package. Currently contains a minimal smoke test confirming the module compiles and loads. More substantive network tests are expected as the client grows.
+  </Accordion>
+  <Accordion title="TimelineTests">
+    Tests for the `Timeline` package. Includes `TimelineFilterTests` (encode/decode round-trips for every `TimelineFilter` variant) and `TimelineViewModelTests` (stream event handling: deduplication and deletion of statuses in the live datasource).
+  </Accordion>
+  <Accordion title="EnvTests">
+    Tests for the `Env` package, which provides environment objects and dependency injection. The `RouterPath` tests verify URL-handling logic: Threads URLs are silently dropped, local Mastodon status URLs navigate to `.statusDetail`, connected remote URLs navigate to `.remoteStatusDetail`, and unrecognized URLs leave the path unchanged.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## How to run tests
+
+<Tabs>
+  <Tab title="Xcode">
+Open the project in Xcode, press `Cmd+U` to run all tests, or use the **Test navigator** (Cmd+6) to run a single scheme or individual test case.
+  </Tab>
+  <Tab title="XcodeBuildMCP">
+Set project defaults once per session, then run any scheme by name:
+
+```bash
+# Set defaults once per session
+mcp__XcodeBuildMCP__session-set-defaults \
+  projectPath: "/path/to/IceCubesApp.xcodeproj" \
+  simulatorName: "iPhone Air"
+
+# Run individual package test schemes
+mcp__XcodeBuildMCP__test_sim scheme: "AccountTests"
+mcp__XcodeBuildMCP__test_sim scheme: "ModelsTests"
+mcp__XcodeBuildMCP__test_sim scheme: "NetworkTests"
+mcp__XcodeBuildMCP__test_sim scheme: "TimelineTests"
+mcp__XcodeBuildMCP__test_sim scheme: "EnvTests"
+```
+  </Tab>
+</Tabs>
+
+---
+
+## What each scheme covers
+
+### ModelsTests — HTML parsing and model decoding
+
+`HTMLStringTests` exercises the `HTMLString` type that parses every Mastodon status body. It uses Swift Testing's `@Test` and `#expect` macros:
+
+```swift
+@Test
+func testHTMLStringInit() throws {
+    let decoder = JSONDecoder()
+
+    let basicContent = "\"<p>This is a test</p>\""
+    var htmlString = try decoder.decode(HTMLString.self, from: Data(basicContent.utf8))
+    #expect("This is a test" == htmlString.asRawText)
+    #expect("<p>This is a test</p>" == htmlString.htmlValue)
+    #expect("This is a test" == htmlString.asMarkdown)
+    #expect(0 == htmlString.statusesURLs.count)
+    #expect(0 == htmlString.links.count)
+}
+```
+
+`QuoteTests` confirms that a malformed `quoted_status` field in a `Quote` JSON response is ignored without throwing:
+
+```swift
+@Test
+func testQuoteDecodingIgnoresInvalidQuotedStatus() throws {
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+    let json = """
+        {
+          "state": "accepted",
+          "quoted_status_id": "123",
+          "quoted_status": "invalid"
+        }
+        """
+
+    let quote = try decoder.decode(Quote.self, from: Data(json.utf8))
+    #expect(quote.state == .accepted)
+    #expect(quote.quotedStatusId == "123")
+    #expect(quote.quotedStatus == nil)
+}
+```
+
+### TimelineTests — filter codability and stream event handling
+
+`TimelineFilterTests` parameterizes encode/decode round-trips across every `TimelineFilter` variant, catching regressions in persistence or syncing:
+
+```swift
+@MainActor
+@Suite("Timeline Filter Tests")
+struct TimelineFilterTests {
+    @Test(
+        "All timeline filter can be decoded and encoded",
+        arguments: [
+            TimelineFilter.home,
+            TimelineFilter.local,
+            TimelineFilter.federated,
+            TimelineFilter.remoteLocal(server: "me.dm", filter: .local),
+            TimelineFilter.tagGroup(title: "test", tags: ["test"], symbolName: nil),
+            TimelineFilter.hashtag(tag: "test", accountId: nil),
+        ])
+    func timelineCanEncodeAndDecode(filter: TimelineFilter) {
+        #expect(testCodableOn(filter: filter))
+    }
+}
+```
+
+`TimelineViewModelTests` tests the live datasource directly, verifying that duplicate stream events do not insert a second copy of a status, and that delete events remove the correct item:
+
+```swift
+@Test
+func streamEventInsertDuplicateStatus() async throws {
+    let subject = makeSubject()
+    let status = Status.placeholder()
+    await subject.datasource.append(status)
+    var count = await subject.datasource.count()
+    #expect(count == 1)
+    await subject.handleEvent(event: StreamEventUpdate(status: status))
+    count = await subject.datasource.count()
+    #expect(count == 1)  // no duplicate
+}
+```
+
+### EnvTests — router URL dispatch
+
+`RouterTests` checks that `RouterPath` correctly classifies incoming URLs without making network calls:
+
+```swift
+@Test
+@MainActor
+func testRouterLocalStatusURL() {
+    let router = RouterPath()
+    let client = MastodonClient(
+        server: "mastodon.social",
+        oauthToken: .init(accessToken: "", tokenType: "", scope: "", createdAt: 0))
+    client.addConnections(["mastodon.social"])
+    router.client = client
+    let url = URL(string: "https://mastodon.social/status/1010384")!
+    _ = router.handle(url: url)
+    #expect(router.path.first == .statusDetail(id: "1010384"))
+}
+```
+
+### AccountTests — SwiftData metrics store
+
+`AccountMetricsStoreTests` runs against an in-memory `ModelContainer` so no persistent state leaks between test cases. It verifies insert, update, and pruning behavior:
+
+```swift
+@MainActor
+final class AccountMetricsStoreTests: XCTestCase {
+    func testUpsertInsertsNewGroups() throws {
+        let context = try makeContext()
+        let store = AccountMetricsStore()
+        store.upsert(
+            groups: [firstGroup, secondGroup],
+            accountId: "account-1",
+            server: "example.com",
+            modelContext: context
+        )
+        let saved = try context.fetch(FetchDescriptor<MetricsNotificationGroup>())
+        XCTAssertEqual(saved.count, 2)
+    }
+
+    private func makeContext() throws -> ModelContext {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: MetricsNotificationGroup.self,
+            configurations: config
+        )
+        return ModelContext(container)
+    }
+}
+```
+
+---
+
+## SwiftUI Previews as visual testing
+
+Unit tests cover data transformations and business logic. Visual behavior — layouts, color themes, accessibility label text, interactive states — is validated through SwiftUI Previews. Each major view file contains `#Preview` blocks that exercise different configurations (for example, loaded vs. loading state, light vs. dark mode, compact vs. regular size class).
+
+<Tip>
+Previews are the primary way to catch visual regressions in Ice Cubes. Run them in Xcode's canvas whenever you change view code.
+</Tip>
+
+---
+
+## Testing `@Observable` classes independently
+
+`@Observable` classes are plain Swift classes decorated with a macro. You can instantiate them directly in tests without any SwiftUI infrastructure:
+
+```swift
+@Test
+@MainActor
+func testStatusDataControllerToggleFavorite() async {
+    let controller = StatusDataController(status: mockStatus, client: mockClient)
+    #expect(controller.isFavorited == false)
+    await controller.toggleFavorite(remoteStatus: nil)
+    #expect(controller.isFavorited == true)
+}
+```
+
+Because `StatusDataController` (`Env/Sources/Env/StatusDataController.swift`) is annotated `@MainActor`, tests that call its methods must also be `@MainActor`.
+
+---
+
+## Testing philosophy
+
+<Info>
+The project's guiding principles for tests, from `CLAUDE.md`:
+
+- Unit test business logic in services and clients.
+- Use SwiftUI Previews for visual testing.
+- Test `@Observable` classes independently.
+- Keep tests simple and focused.
+- Don't sacrifice code clarity for testability.
+</Info>
+
+Prefer straightforward assertions over elaborate test infrastructure. If a test requires significant scaffolding to exercise a small unit of logic, that is usually a sign the production code has too many dependencies rather than that the test needs more fixtures.

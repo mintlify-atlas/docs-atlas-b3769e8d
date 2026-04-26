@@ -1,0 +1,45 @@
+---
+title: "Direct Messages and Private Conversations"
+description: "Send and receive private messages in Ice Cubes with a dedicated chat-like UI, inline composer, and full access to the rich post editor."
+---
+
+Ice Cubes provides a dedicated tab for private messaging built on top of the Mastodon Conversations API. The interface feels like a messaging app — threaded message bubbles, an inline text field at the bottom of the screen, and live updates via the streaming API — while still giving you access to the full post editor whenever you need it.
+
+## Conversations list
+
+The conversations list (`ConversationsListView`) shows all of your active direct message threads. Each row displays the other participant's avatar and display name, a preview of the last message, and an unread indicator when there are messages you have not seen yet.
+
+Swipe actions on each row let you **mark as read**, **delete**, **favorite**, or **bookmark** a conversation without opening it. These actions call the corresponding Mastodon API endpoints and update the local list state immediately.
+
+The list refreshes automatically when a new streaming event arrives via `StreamWatcher`, so incoming messages appear in real time without a manual pull-to-refresh.
+
+<Note>
+  Direct messages in Mastodon are implemented as posts with `visibility: direct`. The Conversations API groups these posts by their participants, presenting them as threaded exchanges rather than individual timeline entries.
+</Note>
+
+## Chat-like message view
+
+Opening a conversation shows a vertically scrolling list of message bubbles (`ConversationMessageView`). The view automatically scrolls to the most recent message on open and after each new message is sent or received. Messages from you and from the other participant are visually distinguished by alignment and color.
+
+The conversation title bar displays the other participant's display name (with custom emojis rendered inline). For group conversations with more than one other participant, the title shows the participant count.
+
+## Sending messages
+
+A persistent input bar (`ConversationInputView`) is pinned to the bottom of the screen above the keyboard. It contains:
+
+<CardGroup cols={2}>
+  <Card title="Inline text field" icon="text.cursor">
+    A multi-line text field that expands as you type. Send with the paperplane button or with Command + Return on a hardware keyboard.
+  </Card>
+  <Card title="Full editor" icon="pencil">
+    Tap the plus button to open a reply in the full `StatusEditor` sheet, giving you access to media uploads, polls, content warnings, AI writing tools, and all other composer features.
+  </Card>
+</CardGroup>
+
+The send button is hidden when the text field is empty and animates into view as soon as you start typing. While a message is sending, the button shows a `ProgressView` spinner and the send action is disabled to prevent duplicate submissions.
+
+New messages sent via the inline field are posted to the Mastodon API as direct-visibility replies to the conversation's last status. The conversation detail view updates optimistically, appending the new message and scrolling to the bottom before the server response is confirmed.
+
+## Streaming updates
+
+`ConversationDetailView` observes `StreamWatcher.latestEvent` for real-time updates. When a new direct-message event arrives — whether from the other participant or from another device — the message list updates and the view scrolls to the new message automatically. This means conversations feel live even without a manual refresh.

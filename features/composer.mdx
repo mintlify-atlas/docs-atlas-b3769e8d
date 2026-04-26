@@ -1,0 +1,93 @@
+---
+title: "Composing Posts and Threads in Ice Cubes"
+description: "Write posts, create threads up to 5 posts, upload media, add polls, and use AI-assisted tools for text correction and hashtag suggestions."
+---
+
+The Ice Cubes post editor is a full-featured composer built entirely in SwiftUI. It handles everything from a quick status update to a five-post thread with images, a poll, and a content warning — all within a single sheet. The `StatusEditor` component (in the `StatusKit` package) orchestrates the editor, and an `EditorStore` observable class manages text state, media uploads, drafts, and AI assistance.
+
+## Full-featured post editor
+
+The editor provides a rich text field backed by `UITextView` for inline `@mention` and `#hashtag` autocomplete. As you type `@` or `#`, Ice Cubes queries the server for suggestions and displays them in a popover without leaving the text field.
+
+A live **character counter** reflects your instance's configured limit (default 500). The counter turns red when you exceed it, and the post button is disabled until you are within bounds.
+
+<CardGroup cols={2}>
+  <Card title="Visibility" icon="lock">
+    Choose from public, unlisted, followers-only, or direct via the privacy menu next to your avatar. The selected visibility is remembered for your next post.
+  </Card>
+  <Card title="Content warning" icon="exclamationmark.triangle">
+    Toggle the spoiler field with the warning button in the toolbar. The spoiler text is sent as the `spoiler_text` field and counts toward your character limit.
+  </Card>
+  <Card title="Language detection" icon="globe">
+    Apple's `NaturalLanguage` framework detects the language of your post. If the detected language differs from your selected language, a confirmation dialog prompts you to update it before posting.
+  </Card>
+  <Card title="Custom emojis" icon="face.smiling">
+    Instance custom emojis are fetched at editor open. Type `:` to trigger autocomplete for custom emoji shortcodes, which are then rendered inline in the post preview.
+  </Card>
+</CardGroup>
+
+## Thread support
+
+You can extend any post into a thread of **up to 5 posts** by tapping the "Add post" button in the toolbar. Each follow-up post gets its own `EditorStore` instance and is displayed below the previous one, separated by a vertical thread line. Removing a follow-up post is done by tapping the minus button on its header row.
+
+All posts in a thread share the same visibility setting and are submitted sequentially when you tap Post.
+
+## Media uploads
+
+You can attach **up to 4 images** (or a video, or a GIF) to each post. Media is selected via the system photo picker (`PhotosPickerItem`), a camera sheet, or drag-and-drop directly onto the editor.
+
+<Steps>
+  <Step title="Select media">
+    Tap the image icon in the accessory toolbar to open the photo picker, or drag an image from another app onto the composer.
+  </Step>
+  <Step title="Upload in the background">
+    Images are compressed before upload. The `MediaUploadService` uploads up to 2 attachments concurrently with automatic retry (up to 2 attempts with exponential backoff).
+  </Step>
+  <Step title="Add alt text">
+    Tap an uploaded thumbnail to open the media edit sheet where you can type a description manually or use AI to generate one automatically.
+  </Step>
+</Steps>
+
+<Note>
+  Polls and media attachments are mutually exclusive — enabling a poll disables the media attachment button, and vice versa.
+</Note>
+
+## AI-assisted writing
+
+Ice Cubes includes an on-device AI writing assistant powered by Apple's **Foundation Models** framework (`FoundationModels`), available on iOS 26 and later on devices where the system language model is available.
+
+<AccordionGroup>
+  <Accordion title="Correct spelling and grammar">
+    The **Correct** action sends your draft to a `LanguageModelSession` with the prompt "Fix the spelling and grammar mistakes in the following text" at temperature 0.3. The result streams back directly into the text field so you can watch it update in real time.
+  </Accordion>
+  <Accordion title="Shorten">
+    The **Fit** action asks the model to produce a shorter version of your text, useful for trimming a post that is over the character limit. Also streams at temperature 0.3.
+  </Accordion>
+  <Accordion title="Emphasize">
+    The **Emphasize** action rewrites your text to be catchier, using a higher temperature (2.0) for more creative output.
+  </Accordion>
+  <Accordion title="Rewrite with tone">
+    Tone options — Professional, Casual, Humorous, and Educational — each prompt the model to rewrite your text in that voice at temperature 0.8.
+  </Accordion>
+  <Accordion title="Hashtag generation">
+    Tapping "Generate tags" uses a structured output prompt (`@Generable Tags`) to produce 5 camelCased hashtags relevant to your post. The tags are appended to the text field.
+  </Accordion>
+</AccordionGroup>
+
+All AI operations run entirely on-device through the system language model. No text is sent to external servers for these writing assistance features.
+
+<Info>
+  The AI assistant toolbar appears only when `StatusEditor.Assistant.isAvailable` returns `true`, which requires iOS 26 and a compatible device. The `Assistant.prewarm()` call at editor initialization warms the model session to reduce first-use latency.
+</Info>
+
+### AI alt text for images
+
+For image alt text generation, Ice Cubes uses a separate path: the **OpenAI API** via a privacy proxy at `icecubesrelay.fly.dev/openai`. The relay forwards requests to OpenAI's `gpt-4o-mini` vision model with the prompt "What's in this image? Be brief, it's for image alt description on a social network. Don't write in the first person." The response (capped at 50 tokens) is populated into the alt text field for you to review and edit before posting.
+
+## Polls
+
+Enable a poll by tapping the poll icon in the editor toolbar. You can add up to the instance maximum of options (default 4), choose a voting frequency (one vote or multiple), and set a duration. The poll UI is built as `PollView` and attached below the text field. Polls and media cannot be combined in the same post.
+
+## Drafts
+
+Ice Cubes saves drafts to iCloud so they are available across your devices. Tap the drafts icon in the toolbar to open `DraftsListView`, which lists all saved drafts. Selecting a draft restores its text, media attachments, visibility, and spoiler text into the editor. Drafts are stored persistently and synced alongside tag groups and remote timelines.

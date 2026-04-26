@@ -1,0 +1,109 @@
+---
+title: "Managing Multiple Mastodon Accounts"
+description: "Ice Cubes supports unlimited Mastodon accounts. Add, switch, and remove accounts from any screen, with secure keychain token storage."
+---
+
+Ice Cubes lets you connect as many Mastodon accounts as you like — across different servers or the same one — and switch between them without leaving the current screen. Each account keeps its own timeline, notifications, filters, and server-side settings, so your work and personal identities stay separate.
+
+## Adding an account
+
+Open **Settings → Add Account** to connect a new account. Ice Cubes shows a browseable list of known instances sourced from [instances.social](https://instances.social), each showing a preview image, total users, and a short description. You can scroll the list, tap a suggestion to populate the field, or type any server address directly, including your own self-hosted instance.
+
+<Steps>
+  <Step title="Open Add Account">
+    In the app, tap your avatar in the tab bar (iPhone) or click it in the sidebar (iPad / Mac) to open the accounts sheet, then tap **Add account**.
+  </Step>
+  <Step title="Browse or search for your instance">
+    A scrollable list of instances appears immediately. Type part of a server name to filter. Tap any row to pre-fill the address field, or type the full domain manually (e.g. `mastodon.social`).
+  </Step>
+  <Step title="Sign in">
+    Tap **Sign in**. Ice Cubes registers an OAuth application on that server and opens Apple's `WebAuthenticationSession` to complete authentication. Enter your credentials there — Ice Cubes never sees your password. On success the new account appears in the accounts sheet.
+  </Step>
+</Steps>
+
+<Note>
+Pasting a full `@username@server.social` handle into the address field is supported. Ice Cubes strips the username and uses the server portion automatically.
+</Note>
+
+## Switching accounts
+
+The accounts sheet is reachable from anywhere in the app by tapping your avatar.
+
+- **iPhone**: tap your avatar in the tab bar to open the accounts sheet, then tap a different account row.
+- **iPad and Mac**: click your avatar in the sidebar. The sheet lists all accounts, with the active one marked by a green checkmark badge.
+
+You can also switch without opening the sheet: long-press (or right-click on Mac) the avatar to get a context menu that lists every connected account. Tap any entry to switch immediately.
+
+Notification badges appear on the avatar for accounts that have unread notifications — even when those accounts are not currently active. The badge count is updated each time a push notification is delivered.
+
+## Removing an account
+
+<Steps>
+  <Step title="Open the accounts sheet">
+    Tap your avatar to open the accounts sheet.
+  </Step>
+  <Step title="Open account settings">
+    Tap the row for the account you want to remove. This opens the account settings screen.
+  </Step>
+  <Step title="Sign out">
+    Scroll to the **Sign out** button at the bottom of the form and confirm. Ice Cubes deletes the OAuth token from the Keychain, cancels the push notification subscription for that account, and removes it from the accounts list.
+  </Step>
+</Steps>
+
+## Unlimited accounts
+
+There is no cap on the number of accounts. The `AppAccountsManager` stores every connected account in the iOS Keychain and loads them all at launch. All accounts receive push notifications simultaneously.
+
+## Secure token storage
+
+Ice Cubes stores OAuth access tokens — not passwords — in the iOS Keychain via the `KeychainSwift` library. The Keychain entry uses the `accessibleAfterFirstUnlock` policy so tokens are available as soon as the device is unlocked after boot, which is required for the notification extension.
+
+```swift
+// AppAccount.swift — saving a token
+public func save() throws {
+    let encoder = JSONEncoder()
+    let data = try encoder.encode(self)
+    Self.keychain.set(data, forKey: key, withAccess: .accessibleAfterFirstUnlock)
+}
+```
+
+On devices running in a shared app group (used by the notification extension and the main app), all accounts share the same Keychain access group defined by `AppInfo.keychainGroup`.
+
+## Per-account settings
+
+Each account has independent settings:
+
+| Setting | Where to change |
+|---|---|
+| Default post privacy | Account Settings → Edit Info → Post Settings |
+| Sensitive media toggle | Account Settings → Edit Info → Post Settings |
+| Push notification types | Account Settings → Push Notifications |
+| Content filters | Account Settings → Filters |
+
+Settings stored on the Mastodon server (privacy, filters, profile fields) are fetched via `CurrentAccount.fetchUserData()` each time you switch accounts, so they always reflect the current server state.
+
+## Editing your profile
+
+Tap **Edit Info** in account settings to update your profile. The editor lets you change:
+
+- **Display name** — the name shown next to your avatar
+- **Bio** — freeform text (supports emoji from your server)
+- **Custom fields** — up to four name/value pairs displayed on your profile (e.g. Website, Pronouns)
+- **Default post privacy** — Public, Unlisted, Followers-only, or Direct
+- **Sensitive media** — mark all your media as sensitive by default
+- **Private account** — require approval before people can follow you
+- **Bot flag** — marks your account as automated
+- **Discoverable** — controls whether your account appears in search results
+
+Changes are saved to the Mastodon server via a PATCH request when you tap **Save**.
+
+## Server-side notes on profiles
+
+On any account's profile page you can leave a private note visible only to you. Tap the note icon on a profile to open the note editor. Notes are stored server-side via the `POST /api/v1/accounts/:id/note` endpoint and are never shared with the profile owner or other users.
+
+```swift
+// EditRelationshipNoteView.swift — saving a note
+_ = try await client.post(
+    endpoint: Accounts.relationshipNote(
+        id: accountId, json: RelationshipNoteData(note: note)))
+```

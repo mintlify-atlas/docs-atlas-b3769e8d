@@ -1,0 +1,69 @@
+---
+title: "Explore and Search on Mastodon with Ice Cubes"
+description: "Discover trending posts, users, hashtags, and links on Mastodon. Search across content types and view activity graphs for trending tags."
+---
+
+The Explore tab is your window into what is happening beyond the accounts you already follow. It surfaces trending content from your instance, provides a powerful search across all of Mastodon, and lets you browse the most active hashtags with a built-in activity graph — all in one place.
+
+## Explore tab overview
+
+When you open the Explore tab, Ice Cubes fetches four data sets in parallel using Swift concurrency:
+
+<CardGroup cols={2}>
+  <Card title="Suggested accounts" icon="person.2.fill">
+    Accounts your instance recommends that you might want to follow, fetched from `Accounts.suggestions`. Relationship status is loaded alongside so you can follow directly from the explore screen.
+  </Card>
+  <Card title="Trending tags" icon="number">
+    The top hashtags gaining traction on your instance right now, from `Trends.tags`. Each tag row includes an activity graph showing usage over time.
+  </Card>
+  <Card title="Trending posts" icon="text.bubble.fill">
+    Posts that are getting significant engagement, fetched from `Trends.statuses`. Rendered using the same `StatusRowExternalView` component as the main timeline.
+  </Card>
+  <Card title="Trending links" icon="link">
+    External articles and URLs being shared widely across your instance, from `Trends.links`. Displayed as link preview cards.
+  </Card>
+</CardGroup>
+
+A **QuickAccessView** at the top of the screen gives you one-tap access to the most important trending content even before the full data finishes loading. The list is pull-to-refresh with sound and haptic feedback on completion.
+
+## Category navigation
+
+The Explore screen is structured as a grouped list with a section for each content category. Sections only render when they contain data, so the layout adjusts dynamically to what your instance has available.
+
+Each section has a **"See more"** link that navigates to a full-screen view of that category:
+
+- Trending tags → `RouterDestination.tagsList(tags:)` — a scrollable list of all trending tags
+- Suggested accounts, trending posts, and trending links each have equivalent full-screen destinations
+
+## Search
+
+The search bar is embedded in the navigation bar and is always visible (`displayMode: .always`). Typing triggers a debounced search with a 250 ms delay to avoid excessive API calls. Results are fetched from the Mastodon v2 Search API:
+
+```
+GET /api/v2/search?q=<query>
+```
+
+<Tabs>
+  <Tab title="All">
+    Returns accounts, hashtags, and posts in a single response. This is the default scope when you start typing.
+  </Tab>
+  <Tab title="Accounts">
+    Filters results to user profiles only. Relationship data is loaded in a follow-up request so you can follow directly from the results list.
+  </Tab>
+  <Tab title="Hashtags">
+    Shows only matching hashtags. Tapping a result opens the hashtag timeline.
+  </Tab>
+  <Tab title="Posts">
+    Shows only matching status posts, rendered in the standard timeline row style.
+  </Tab>
+</Tabs>
+
+Search results support **pagination**. Scrolling to the bottom of a results section calls `fetchNextPage(of:)` with the current result count as the offset, appending the next page to the existing list.
+
+## Trending tag graphs
+
+Each hashtag in the trending tags section includes a small bar chart visualising how many posts have used that tag over recent days. The graph data comes from the `history` field on the `Tag` model returned by the Trends API. This gives you an at-a-glance sense of whether a tag is peaking or fading before you decide to follow it.
+
+<Tip>
+  Tap any trending tag to open its dedicated hashtag timeline, where you can also choose to follow the tag so its posts appear in your home timeline.
+</Tip>

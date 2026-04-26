@@ -1,0 +1,153 @@
+---
+title: "Setting Up Push Notifications in Ice Cubes"
+description: "Set up push notifications in Ice Cubes. A privacy-first relay routes encrypted Mastodon alerts to APNS — content is decrypted only on your device."
+---
+
+Ice Cubes delivers Mastodon notifications to your device via Apple Push Notification service (APNS). The setup involves a lightweight proxy server that forwards encrypted payloads from your Mastodon instance to APNS. The proxy never sees the content of your notifications — decryption happens entirely on-device inside a `NotificationService` app extension.
+
+## Enabling push notifications
+
+<Steps>
+  <Step title="Open account settings">
+    Tap your avatar to open the accounts sheet, then tap the active account row to open its settings.
+  </Step>
+  <Step title="Tap Push Notifications">
+    In the account settings form, tap **Push Notifications** to open `PushNotificationsView`. This is per-account — each connected account has its own push subscription.
+  </Step>
+  <Step title="Enable the main toggle">
+    Turn on the **Push Notifications** toggle. Ice Cubes calls `UNUserNotificationCenter.requestAuthorization` to ask for system permission (alerts, sound, and badge), then registers with APNS to receive a device push token.
+  </Step>
+  <Step title="Select notification types">
+    Once enabled, individual toggles appear for each notification type. Toggle each type on or off as needed. Changes are saved to the server immediately via a `POST /api/v1/push/subscription` call.
+  </Step>
+</Steps>
+
+## Notification types
+
+You can subscribe to any combination of the following types:
+
+| Type | Setting key |
+|---|---|
+| Mentions | `isMentionNotificationEnabled` |
+| New followers | `isFollowNotificationEnabled` |
+| Favorites | `isFavoriteNotificationEnabled` |
+| Boosts (reblogs) | `isReblogNotificationEnabled` |
+| Poll results | `isPollNotificationEnabled` |
+| New posts from followed accounts | `isNewPostsNotificationEnabled` |
+
+The `Push.createSub` endpoint in the `NetworkClient` package maps these toggles to the Mastodon Web Push subscription API:
+
+```swift
+// Endpoint/Push.swift
+case createSub(
+    endpoint: String,
+    p256dh: Data,
+    auth: Data,
+    mentions: Bool,
+    status: Bool,
+    reblog: Bool,
+    follow: Bool,
+    favorite: Bool,
+    poll: Bool)
+```
+
+## Privacy architecture
+
+Ice Cubes uses a self-hosted relay at `https://icecubesrelay.fly.dev` as the Web Push endpoint. When your Mastodon server sends a notification, it encrypts the payload using the P-256 public key that Ice Cubes registered at subscription time. The relay receives this opaque, encrypted blob and forwards it to APNS without being able to read it.
+
+Decryption happens exclusively on-device inside the `NotificationService` app extension:
+
+<Steps>
+  <Step title="Relay receives encrypted push">
+    The Mastodon server sends a Web Push payload encrypted with the device's P-256 public key. The relay at `icecubesrelay.fly.dev` forwards the raw payload to APNS.
+  </Step>
+  <Step title="NotificationService extension runs">
+    iOS calls the `NotificationService` extension before displaying the notification. The extension retrieves the P-256 private key and auth secret from the Keychain — the same keys registered at subscription time.
+  </Step>
+  <Step title="On-device decryption">
+    The extension decrypts the payload using HKDF key derivation and AES-GCM:
+
+    ```swift
+    // NotificationServiceSupport.swift
+    nonisolated static func decrypt(
+        payload: Data, salt: Data, auth: Data,
+        privateKey: P256.KeyAgreement.PrivateKey,
+        publicKey: P256.KeyAgreement.PublicKey
+    ) -> Data?
+    ```
+
+    The plaintext `MastodonPushNotification` is decoded from JSON and stored in `userInfo["plaintext"]` for the main app to use when the user taps the notification.
+  </Step>
+</Steps>
+
+<Note>
+The relay server only sees encrypted binary blobs. It cannot read notification titles, bodies, mention content, or any identifying information beyond the APNS device token.
+</Note>
+
+## Rich notifications with contact photos
+
+Ice Cubes enriches notifications using `INSendMessageIntent` from the Intents framework. After decryption, the extension downloads the sender's avatar and attaches it to an intent. iOS uses this to display the avatar alongside the notification, and to power Siri Suggestions and Focus filters.
+
+```swift
+// NotificationService.swift
+let intent = buildMessageIntent(
+    remoteNotification: remoteNotification,
+    currentUser: bestAttemptContent.userInfo["i"] as? String ?? "",
+    avatarURL: fileURL)
+bestAttemptContent = try bestAttemptContent.updating(from: intent)
+    as! UNMutableNotificationContent
+```
+
+## Notification grouping
+
+Notifications are grouped by activity type using the `threadIdentifier` property:
+
+```swift
+bestAttemptContent.threadIdentifier = remoteNotification.type
+```
+
+This means all your new-follower notifications stack together, all your mentions stack together, and so on. iOS manages the stacking display automatically.
+
+When multiple accounts are connected, the notification subtitle shows which account the notification belongs to, so you know which account a tap will switch to.
+
+## Tapping a notification
+
+When you tap a notification, `PushNotificationsService` handles the response:
+
+```swift
+// PushNotificationsService.swift
+public func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse
+) async {
+    guard let plaintext = response.notification.request.content.userInfo["plaintext"] as? Data,
+          let mastodonPushNotification = try? JSONDecoder().decode(
+              MastodonPushNotification.self, from: plaintext),
+          let account = subscriptions.first(where: {
+              $0.account.token.accessToken == mastodonPushNotification.accessToken
+          })
+    else { return }
+    // Fetches the full notification object and sets handledNotification
+}
+```
+
+The service matches the notification's access token to the correct account subscription, fetches the full `Notification` object from the server, and sets `handledNotification`. The main app observes this value, switches to the correct account, and navigates to the relevant post or profile.
+
+## In-app notification badges
+
+While the app is in the foreground, `PushNotificationsService` intercepts incoming notifications and increments the per-account badge count in `UserPreferences.notificationsCount`. This keeps the avatar badge accurate for every account, even the ones that are not currently active.
+
+```swift
+// PushNotificationsService.swift
+public func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification
+) async -> UNNotificationPresentationOptions {
+    UserPreferences.shared.reloadNotificationsCount(tokens: tokens)
+    return [.banner, .sound]
+}
+```
+
+## Troubleshooting duplicate notifications
+
+If you receive duplicate notifications for an account, open its push notification settings and tap **Fix duplicate notifications**. This deletes the existing subscription from the server and creates a fresh one.

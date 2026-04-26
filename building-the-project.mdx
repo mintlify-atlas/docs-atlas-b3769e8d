@@ -1,0 +1,89 @@
+---
+title: "Build Ice Cubes from Source with Xcode"
+description: "Step-by-step guide to cloning, configuring, and compiling Ice Cubes in Xcode using your Apple Developer Team ID and bundle prefix."
+---
+
+You can build Ice Cubes locally from its open-source repository. Before you can compile the project you must create a local `.xcconfig` file with your own Apple Developer credentials — the project will not build without it. The steps below walk you through everything from cloning the repo to running the app on a simulator or device.
+
+## Prerequisites
+
+- **Xcode** — Download the latest version from the Mac App Store or [developer.apple.com](https://developer.apple.com/xcode/).
+- **Apple Developer account** — A free account works for simulator builds. A paid membership is required to run the app on a physical device or distribute it.
+- **Your Apple Team ID** — Find this by logging in to the [Apple Developer Portal](https://developer.apple.com/account) and looking under **Membership details**.
+
+## Build steps
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone the Ice Cubes repo from GitHub:
+
+    ```bash
+    git clone https://github.com/Dimillian/IceCubesApp.git
+    cd IceCubesApp
+    ```
+  </Step>
+  <Step title="Copy the xcconfig template">
+    The project reads build settings from `IceCubesApp.xcconfig`. A template is included in the repo. Copy it to create your local config file:
+
+    ```bash
+    cp IceCubesApp.xcconfig.template IceCubesApp.xcconfig
+    ```
+
+    <Warning>
+      Do not commit `IceCubesApp.xcconfig` to version control. It contains your personal Team ID and bundle prefix and is already listed in `.gitignore`.
+    </Warning>
+  </Step>
+  <Step title="Fill in your credentials">
+    Open `IceCubesApp.xcconfig` in any text editor and replace the placeholder values:
+
+    ```xcconfig
+    DEVELOPMENT_TEAM = YOUR_TEAM_ID
+    BUNDLE_ID_PREFIX = com.example
+    ```
+
+    - Set `DEVELOPMENT_TEAM` to your 10-character Apple Team ID (e.g., `AB12CD34EF`).
+    - Set `BUNDLE_ID_PREFIX` to your reverse-domain prefix (e.g., `com.yourname`).
+
+    Save the file.
+  </Step>
+  <Step title="Open the Xcode project">
+    Open `IceCubesApp.xcodeproj` in Xcode:
+
+    ```bash
+    open IceCubesApp.xcodeproj
+    ```
+
+    Xcode will resolve the Swift package dependencies automatically. This may take a moment on first launch.
+  </Step>
+  <Step title="Select a scheme and run">
+    In Xcode, choose the **IceCubesApp** scheme and select a simulator or a connected device from the toolbar, then press **Run** (⌘R).
+
+    The project also includes extension targets that build alongside the main app:
+
+    | Target | Description |
+    |--------|-------------|
+    | `NotificationService` | Decrypts and formats push notifications on-device |
+    | `ShareExtension` | Enables sharing content into Ice Cubes from other apps |
+    | `ActionExtension` | Quick actions triggered from the share sheet |
+    | `WidgetsExtension` | Home screen widgets for timeline, mentions, and accounts |
+  </Step>
+</Steps>
+
+## Code formatting
+
+The project uses [SwiftFormat](https://github.com/nicklockwood/SwiftFormat) to enforce a consistent code style. The only project-level rule defined in `.swiftformat` is:
+
+```text
+--indent 2
+```
+
+All Swift source files use **2-space indentation**. If you plan to contribute code, install SwiftFormat and run it before opening a pull request:
+
+```bash
+brew install swiftformat
+swiftformat .
+```
+
+<Tip>
+  Many contributors configure Xcode or their editor to run SwiftFormat automatically on save, which keeps formatting consistent without any extra steps.
+</Tip>

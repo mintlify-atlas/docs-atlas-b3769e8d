@@ -1,0 +1,120 @@
+{
+  "projectType": "saas",
+  "projectName": "Ice Cubes",
+  "projectDescription": "A fully-featured, open-source SwiftUI Mastodon client for iOS, iPadOS, macOS, and visionOS.",
+  "theme": "almond",
+  "primaryColor": "#20b6de",
+  "lightColor": "#78dcef",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "building-the-project",
+              "contributing"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/timeline",
+              "features/composer",
+              "features/notifications",
+              "features/explore",
+              "features/direct-messages"
+            ]
+          },
+          {
+            "group": "Customization",
+            "pages": [
+              "customization/themes",
+              "customization/display-settings",
+              "customization/tab-bar-and-gestures"
+            ]
+          },
+          {
+            "group": "Accounts & Privacy",
+            "pages": [
+              "accounts/multi-account",
+              "accounts/authentication",
+              "accounts/push-notifications"
+            ]
+          },
+          {
+            "group": "Widgets & Extensions",
+            "pages": [
+              "extensions/widgets",
+              "extensions/share-and-action"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Architecture",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "architecture/overview",
+              "architecture/packages"
+            ]
+          },
+          {
+            "group": "Swift Packages",
+            "pages": [
+              "architecture/network-client",
+              "architecture/models",
+              "architecture/design-system",
+              "architecture/env-and-state"
+            ]
+          },
+          {
+            "group": "Modern SwiftUI Patterns",
+            "pages": [
+              "architecture/swiftui-patterns",
+              "architecture/testing"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multi-platform support: iOS, iPadOS, macOS, and visionOS",
+    "Multi-account management with secure keychain storage",
+    "Real-time streaming timeline with unread counters",
+    "Full-featured post composer with AI-assisted tools (OpenAI)",
+    "Rich push notifications via custom privacy-preserving proxy",
+    "Extensive theming with 14+ built-in color sets and custom themes",
+    "Tag groups — custom timelines combining multiple hashtags",
+    "Remote local timelines from any Mastodon instance",
+    "Home screen widgets (timeline, mentions, hashtags, accounts)",
+    "Translation support via DeepL and instance-provided translations",
+    "iCloud sync for tag groups, remote timelines, and drafts",
+    "Home timeline caching with position sync across devices"
+  ],
+  "publicApiSurface": [
+    "MastodonClient.get(endpoint:forceVersion:) -> Entity",
+    "MastodonClient.post(endpoint:forceVersion:) -> Entity",
+    "MastodonClient.put(endpoint:forceVersion:) -> Entity",
+    "MastodonClient.delete(endpoint:forceVersion:) -> HTTPURLResponse?",
+    "MastodonClient.oauthURL() -> URL",
+    "MastodonClient.continueOauthFlow(url:) -> OauthToken",
+    "MastodonClient.makeWebSocketTask(endpoint:instanceStreamingURL:) -> URLSessionWebSocketTask",
+    "MastodonClient.mediaUpload(endpoint:version:method:mimeType:filename:data:) -> Entity",
+    "Theme.applySet(set: ColorSetName)",
+    "Theme.allColorSet: [ColorSet]",
+    "Theme.restoreDefault()",
+    "Router (environment object for navigation)",
+    "CurrentAccount (environment object for active account state)",
+    "AppAccountsManager (multi-account management)",
+    "StreamWatcher (real-time streaming events)",
+    "DeepLClient (translation API)",
+    "OpenAIClient (AI-assisted features)"
+  ]
+}

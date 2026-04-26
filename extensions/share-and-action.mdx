@@ -1,0 +1,92 @@
+---
+title: "Share Extension and Quick Actions"
+description: "Use the Ice Cubes Share Extension to post links and text from any app, and the Action Extension for quick Mastodon actions from the share sheet."
+---
+
+Ice Cubes ships two system extensions that bring Mastodon closer to the rest of your device. The Share Extension lets you compose a post directly from any app's share sheet, while the Action Extension detects when you are viewing a Mastodon URL in Safari and opens it inside Ice Cubes with a single tap.
+
+## Share Extension
+
+The Share Extension embeds the full Ice Cubes post composer inside the system share sheet. When you share content to Ice Cubes, the composer opens pre-filled with whatever you shared—no copy-pasting required.
+
+### How to enable
+
+No configuration is needed. Once Ice Cubes is installed, the **Ice Cubes** option appears automatically in the share sheet of every app that supports native sharing. If you do not see it, scroll to the end of the app row in the share sheet and tap **More** to enable it.
+
+### What you can share
+
+- **Links** — share a URL from Safari, Chrome, or any browser. The link is inserted into the post body.
+- **Text** — select text in any app, tap Share, and the selected text is pasted into the composer as a quote or standalone post.
+- **Images** — share photos from Photos, screenshots, or any app that surfaces images through the share sheet. The image is attached to the new post automatically.
+
+### Composing and posting
+
+<Steps>
+  <Step title="Tap the share button">
+    In any app, tap the share icon (the box with an arrow pointing up) or long-press a link or image and choose **Share**.
+  </Step>
+  <Step title="Choose Ice Cubes">
+    Scroll the app row in the share sheet and tap the **Ice Cubes** icon.
+  </Step>
+  <Step title="Review the pre-filled composer">
+    The Ice Cubes status editor opens inside the share sheet with your content already inserted. You can edit the text, add a content warning, change the visibility, or attach additional media.
+  </Step>
+  <Step title="Post">
+    Tap **Post** to publish. The share sheet closes automatically once the post is submitted.
+  </Step>
+</Steps>
+
+<Info>
+  The Share Extension uses your currently active Ice Cubes account. To post from a different account, switch accounts inside the main app before using the share sheet.
+</Info>
+
+## Action Extension
+
+The Action Extension is a Safari-specific tool. When you are viewing a public Mastodon post or profile URL in Safari, the Action Extension converts the page URL into an Ice Cubes deep link and opens it directly in the app—so you see the content inside your native client instead of in the browser.
+
+### How it works
+
+The extension runs a small JavaScript snippet (`Action.js`) that reads the current page URL from Safari and passes it to the native `ActionRequestHandler`. The handler checks whether the host is a valid Mastodon instance, converts the URL to an `icecubes://` deep link, and hands it back to JavaScript, which then navigates the browser tab to the deep link—triggering Ice Cubes to open.
+
+If the URL does not belong to a Mastodon instance (for example, a regular website), the extension exits silently and nothing happens.
+
+### How to use it in Safari
+
+<Steps>
+  <Step title="Navigate to a Mastodon URL">
+    Open any public Mastodon post or profile page in Safari, for example a link someone shared with you.
+  </Step>
+  <Step title="Open the share sheet">
+    Tap the share icon in the Safari toolbar.
+  </Step>
+  <Step title="Tap the Ice Cubes action">
+    Scroll the action row (the second row in the share sheet) until you see **Ice Cubes**, then tap it.
+  </Step>
+  <Step title="View in Ice Cubes">
+    If the URL is a valid Mastodon page, Ice Cubes opens and navigates directly to that post or profile inside your native client.
+  </Step>
+</Steps>
+
+<Note>
+  The Action Extension only works with URLs hosted on a Mastodon-compatible instance. It confirms this by querying the instance API before attempting to open the deep link.
+</Note>
+
+## Common use cases
+
+<AccordionGroup>
+  <Accordion title="Sharing an article you are reading">
+    While reading an article in Safari or an RSS reader, tap share and choose Ice Cubes. The article URL is placed in the composer so you can add your own commentary before posting.
+  </Accordion>
+
+  <Accordion title="Sharing a photo from your camera roll">
+    Open Photos, select an image, tap the share icon, and choose Ice Cubes. The image is attached to a new post and you can write a caption or alt text before publishing.
+  </Accordion>
+
+  <Accordion title="Opening a Mastodon post from Safari in Ice Cubes">
+    When someone sends you a link to a Mastodon post and you open it in Safari, use the Action Extension to jump into Ice Cubes. You will land on the native post view where you can boost, reply, or favourite without leaving the app.
+  </Accordion>
+
+  <Accordion title="Sharing selected text as a quote">
+    In any app, select a passage of text, tap Share, and choose Ice Cubes. The selected text appears in the composer ready to be posted as a quote or commentary.
+  </Accordion>
+</AccordionGroup>

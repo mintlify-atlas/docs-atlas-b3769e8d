@@ -1,0 +1,105 @@
+---
+title: "Contributing to Ice Cubes"
+description: "Learn how to contribute to Ice Cubes: fork the repo, follow SwiftFormat conventions, submit PRs, and understand the package structure."
+---
+
+Ice Cubes is open-source software licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0). Anyone is welcome to read the code, file issues, and submit pull requests. The project is actively maintained and new contributions are encouraged — whether you are fixing a bug, improving an existing feature, or adding something new.
+
+## How to contribute
+
+<Steps>
+  <Step title="Fork the repository">
+    Create a personal fork of [Dimillian/IceCubesApp](https://github.com/Dimillian/IceCubesApp) on GitHub. This gives you a copy of the repo under your own account where you can make changes freely.
+  </Step>
+  <Step title="Create a branch">
+    Branch off `main` for your change. Use a short, descriptive branch name:
+
+    ```bash
+    git checkout -b fix/timeline-scroll-position
+    ```
+  </Step>
+  <Step title="Make your changes">
+    Follow the code style and architecture guidelines described below. Build the project and verify it compiles without errors before committing.
+  </Step>
+  <Step title="Open a pull request">
+    Push your branch to your fork and open a pull request against `Dimillian/IceCubesApp`. Describe what the change does and why. Reference any related issues.
+  </Step>
+</Steps>
+
+## Code style
+
+The project uses [SwiftFormat](https://github.com/nicklockwood/SwiftFormat) for consistent formatting. The only rule defined in `.swiftformat` is:
+
+```text
+--indent 2
+```
+
+All Swift source files use **2-space indentation**. Run SwiftFormat on your changes before opening a pull request:
+
+```bash
+brew install swiftformat
+swiftformat .
+```
+
+Beyond indentation, follow the Swift naming conventions and the patterns already in the file you are editing. Keep new code consistent with its surrounding context.
+
+## Architecture overview for contributors
+
+The app is organized into independent Swift packages under `/Packages/`. Each package owns a distinct slice of the application:
+
+| Package | Responsibility |
+|---------|---------------|
+| `Models` | Data models and API structures for Mastodon entities |
+| `NetworkClient` | API client with support for Mastodon, DeepL, and OpenAI APIs |
+| `Env` | Environment objects, app-wide state, and dependency injection |
+| `DesignSystem` | Theming, colors, fonts, and reusable UI components |
+| `Account` | User profile views and account management |
+| `AppAccount` | Multi-account management and secure credential storage |
+| `Timeline` | Timeline views, filtering, and unread status tracking |
+| `StatusKit` | Status/post composition and display components |
+| `Notifications` | Notification views and handling |
+| `Conversations` | Direct messages and private conversations |
+| `Explore` | Search, trending users, tags, posts, and links |
+| `Lists` | User list management |
+| `MediaUI` | Media viewing with zoom, video playback, and sharing |
+
+When adding a new feature, identify the most relevant package and add code there. If the feature spans packages, keep the dependency direction clean — higher-level packages may depend on lower-level ones, not the other way around.
+
+## Modern SwiftUI guidelines
+
+The codebase is in the process of moving away from legacy MVVM patterns. New code must follow the modern SwiftUI approach:
+
+**Do not create ViewModels for new views.** Instead, express views as pure state using SwiftUI's native property wrappers:
+
+- `@State` — Local, ephemeral view state
+- `@Binding` — Two-way data flow between parent and child views
+- `@Observable` — Shared state for services injected via environment (preferred for new code)
+- `@Environment` — Dependency injection for app-wide concerns such as `Client`, `Theme`, and `Router`
+
+Use `async/await` for all asynchronous work. Attach async tasks to the view lifecycle with the `.task` modifier and handle errors explicitly with `try/catch`. Avoid Combine for new code.
+
+<Note>
+  The codebase contains some older views that still use ViewModels. These are being phased out. If you are editing a legacy view, maintain its existing patterns. If you are writing a new view, use the modern approach exclusively.
+</Note>
+
+**Do not nest `@Observable` objects inside other `@Observable` objects.** This breaks SwiftUI's observation system. Initialize services at the view level and inject them via the environment.
+
+## Testing
+
+The project includes test schemes for individual packages. You can run them from Xcode's Test navigator or by specifying the scheme directly:
+
+| Scheme | Coverage |
+|--------|----------|
+| `AccountTests` | Account package logic |
+| `ModelsTests` | Data model parsing and structures |
+| `NetworkTests` | API client and networking |
+| `TimelineTests` | Timeline filtering and state |
+| `EnvTests` | Environment objects and dependency injection |
+
+Add or update tests when your change affects logic that can be tested in isolation. Keep tests simple and focused — test one behavior per test case.
+
+## Further reading
+
+<Card title="Architecture overview" icon="cubes" href="/architecture/overview">
+  A deeper look at the modular package structure, environment objects, and how the pieces connect.
+</Card>

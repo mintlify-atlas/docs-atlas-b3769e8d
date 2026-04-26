@@ -1,0 +1,238 @@
+---
+title: "Modern SwiftUI Patterns Used in Ice Cubes"
+description: "Ice Cubes adopts modern SwiftUI architecture: no ViewModels, native state management with @Observable, async/await, and pure view composition."
+---
+
+Ice Cubes follows a 2025 SwiftUI architectural philosophy that treats views as pure expressions of state rather than passive displays orchestrated by separate ViewModel objects. New code in the codebase eliminates the ViewModel layer entirely, leaning on SwiftUI's built-in property wrappers, the `@Observable` macro, and Swift concurrency to keep logic close to where it is used and let the framework manage rendering efficiently.
+
+## Core principles
+
+### 1. No ViewModels for new code
+
+The codebase contains legacy MVVM code (for example, `StatusRowViewModel` in `StatusKit`) that is actively being phased out. All new features must express their state directly inside the view using SwiftUI primitives. Moving state into a separate object adds an abstraction layer with no benefit and makes SwiftUI's update mechanism harder to reason about.
+
+<Warning>
+Do not create a ViewModel class for new views. If you find yourself reaching for one, use `@State` and a local `enum` instead.
+</Warning>
+
+### 2. Native state management
+
+Use the right property wrapper for each job:
+
+| Wrapper | Use case |
+|---|---|
+| `@State` | Local, ephemeral view state owned by this view |
+| `@Binding` | Two-way data flow passed down from a parent view |
+| `@Observable` | Shared mutable state injected via the environment |
+| `@Environment` | Reading app-wide services or shared state |
+
+### 3. State ownership
+
+State flows down the view hierarchy and actions flow back up. Keep state declared as close to where it is consumed as possible. Extract state into a shared `@Observable` object only when multiple unrelated views need the same data.
+
+### 4. Modern async patterns
+
+Use `async/await` for all asynchronous work. Attach data-loading tasks to view lifecycle using the `.task` modifier so they are automatically cancelled when the view disappears. Provide pull-to-refresh using `.refreshable`. Avoid Combine unless there is no alternative.
+
+### 5. View composition
+
+Build interfaces from small, single-purpose views. Extract a subview when a `body` becomes too large, not when you need to separate "logic" from "presentation". Use view modifiers to encapsulate reusable styling behavior.
+
+---
+
+## Code examples
+
+### ViewState enum pattern
+
+The canonical pattern for loading views: a `@State` property holds a typed enum that represents every possible UI state — loading, loaded, and error. A `switch` in `body` renders each case declaratively.
+
+```swift
+struct TimelineView: View {
+    @Environment(Client.self) private var client
+    @State private var viewState: ViewState = .loading
+
+    enum ViewState {
+        case loading
+        case loaded(statuses: [Status])
+        case error(Error)
+    }
+
+    var body: some View {
+        Group {
+            switch viewState {
+            case .loading:
+                ProgressView()
+            case .loaded(let statuses):
+                StatusList(statuses: statuses)
+            case .error(let error):
+                ErrorView(error: error)
+            }
+        }
+        .task {
+            await loadTimeline()
+        }
+    }
+
+    private func loadTimeline() async {
+        do {
+            let statuses = try await client.getHomeTimeline()
+            viewState = .loaded(statuses: statuses)
+        } catch {
+            viewState = .error(error)
+        }
+    }
+}
+```
+
+### Async loading with `.task` and `.refreshable`
+
+When loading and error state are simple booleans rather than a full enum, use separate `@State` properties. The `.refreshable` modifier re-uses the same async function, so there is no duplication.
+
+```swift
+struct NotificationsView: View {
+    @Environment(Client.self) private var client
+    @State private var notifications: [Notification] = []
+    @State private var isLoading = false
+    @State private var error: Error?
+
+    var body: some View {
+        List(notifications) { notification in
+            NotificationRow(notification: notification)
+        }
+        .overlay {
+            if isLoading {
+                ProgressView()
+            }
+        }
+        .task {
+            await loadNotifications()
+        }
+        .refreshable {
+            await loadNotifications()
+        }
+    }
+
+    private func loadNotifications() async {
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            notifications = try await client.getNotifications()
+        } catch {
+            self.error = error
+        }
+    }
+}
+```
+
+### Shared state with `@Observable`
+
+Services that need to be shared across many unrelated views are marked `@Observable` and injected via `.environment()`. Any view that reads a property from the object is automatically re-rendered when that property changes — no `objectWillChange` publisher required.
+
+```swift
+@Observable
+class AppAccountsManager {
+    var currentAccount: Account?
+    var availableAccounts: [Account] = []
+
+    func switchAccount(_ account: Account) {
+        currentAccount = account
+        // Handle account switching
+    }
+}
+
+// In App file
+struct IceCubesApp: App {
+    @State private var accountManager = AppAccountsManager()
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .environment(accountManager)
+        }
+    }
+}
+```
+
+Consume the injected object in any descendant view:
+
+```swift
+struct AccountSwitcherView: View {
+    @Environment(AppAccountsManager.self) private var accountManager
+
+    var body: some View {
+        // accountManager.currentAccount is always up to date
+    }
+}
+```
+
+---
+
+## Critical pitfall: do not nest `@Observable` objects
+
+<Warning>
+Do **not** store one `@Observable` object as a property of another `@Observable` object. SwiftUI tracks which properties are read during a view's `body` evaluation. When an `@Observable` is nested inside another, the outer object holds a direct reference rather than an observed dependency graph, which silently breaks change propagation and causes views to stop updating.
+</Warning>
+
+Instead, initialize each service independently at the view level and inject them separately:
+
+<Tabs>
+  <Tab title="Modern approach">
+```swift
+// Each service is owned at the App level and injected independently
+struct IceCubesApp: App {
+    @State private var accountManager = AppAccountsManager()
+    @State private var theme = Theme()
+    @State private var router = RouterPath()
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .environment(accountManager)
+                .environment(theme)
+                .environment(router)
+        }
+    }
+}
+```
+  </Tab>
+  <Tab title="Legacy (avoid)">
+```swift
+// WRONG: nesting @Observable objects breaks SwiftUI observation
+@Observable
+class AppState {
+    var accountManager = AppAccountsManager() // breaks observation
+    var theme = Theme()                        // breaks observation
+}
+```
+  </Tab>
+</Tabs>
+
+---
+
+## Environment injection pattern
+
+The `.environment()` modifier injects a value into the view hierarchy. Use `@Environment` to read it anywhere below the injection point. This is how Ice Cubes provides `Client`, `Theme`, `RouterPath`, `CurrentAccount`, and other app-wide services to every view without passing them through initializers.
+
+```swift
+// Inject at the root
+ContentView()
+    .environment(client)
+    .environment(theme)
+
+// Read anywhere in the subtree
+struct StatusRowView: View {
+    @Environment(Client.self) private var client
+    @Environment(Theme.self) private var theme
+
+    var body: some View { ... }
+}
+```
+
+---
+
+## Legacy code note
+
+<Note>
+Some older views such as `StatusRowViewModel` (`StatusKit/Sources/StatusKit/Row/StatusRowViewModel.swift`) still use the ViewModel pattern. These are legacy code paths that are being phased out. When modifying existing files that use ViewModels, maintain the existing pattern for consistency. When adding new functionality, always use the modern patterns described on this page.
+</Note>

@@ -1,0 +1,243 @@
+---
+title: "DesignSystem Package: Themes and UI Components"
+description: "The DesignSystem package provides Ice Cubes' theming system, 14 built-in color sets, font management, and shared SwiftUI view modifiers."
+---
+
+The `DesignSystem` package owns everything visual that is shared across the Ice Cubes feature packages. At its core is `Theme`, an `@Observable` singleton that stores and persists every display preference. Underneath `Theme` sits a `ColorSet` protocol with 14 concrete implementations arranged into 7 dark/light pairs. The package also supplies font configuration, display-style enums, and SwiftUI view modifiers that views consume via the environment.
+
+## Theme class
+
+`Theme` is a `@MainActor @Observable final class` accessed through the `Theme.shared` singleton. All mutable properties write through to a private `ThemeStorage` object whose fields are backed by `@AppStorage`, so changes are persisted to `UserDefaults` automatically without any manual save calls.
+
+```swift
+@MainActor
+@Observable
+public final class Theme {
+  public static let shared = Theme()
+
+  // Core colors
+  public var tintColor: Color
+  public var primaryBackgroundColor: Color
+  public var secondaryBackgroundColor: Color
+  public var labelColor: Color
+  public private(set) var contrastingTintColor: Color  // computed for accessibility
+
+  // Active color set
+  public var selectedSet: ColorSetName
+
+  // Display style
+  public var statusActionsDisplay: StatusActionsDisplay  // .full | .discret | .none
+  public var statusDisplayStyle: StatusDisplayStyle       // .large | .medium | .compact
+  public var statusActionSecondary: StatusActionSecondary // .share | .bookmark
+
+  // Avatar
+  public var avatarPosition: AvatarPosition  // .leading | .top
+  public var avatarShape: AvatarShape        // .circle | .rounded
+  public var avatarAnimated: Bool
+
+  // Typography
+  public var lineSpacing: Double
+  public var fontSizeScale: Double
+  public var chosenFont: UIFont?             // nil = system font
+
+  // Behavior
+  public var followSystemColorScheme: Bool
+  public var displayFullUsername: Bool
+  public var compactLayoutPadding: Bool
+}
+```
+
+`contrastingTintColor` is recomputed whenever `tintColor`, `primaryBackgroundColor`, or `labelColor` changes. It resolves to whichever of `labelColor` or `primaryBackgroundColor` has greater luminance contrast against the current tint, ensuring readable text on tinted buttons and badges.
+
+### Applying a color set
+
+```swift
+// Apply a named set (updates scheme, tintColor, backgrounds, labelColor)
+Theme.shared.applySet(set: .iceCubeDark)
+
+// Reset everything to defaults
+Theme.shared.restoreDefault()
+```
+
+---
+
+## ColorSet protocol
+
+Every color set conforms to `ColorSet`:
+
+```swift
+public protocol ColorSet: Sendable {
+  var name: ColorSetName { get }
+  var scheme: ColorScheme { get }   // .dark | .light
+  var tintColor: Color { get set }
+  var primaryBackgroundColor: Color { get set }
+  var secondaryBackgroundColor: Color { get set }
+  var labelColor: Color { get set }
+}
+```
+
+### ColorSetName enum
+
+All 14 built-in sets:
+
+```swift
+public enum ColorSetName: String, Sendable {
+  case iceCubeDark        = "Ice Cube - Dark"
+  case iceCubeLight       = "Ice Cube - Light"
+  case iceCubeNeonDark    = "Ice Cube Neon - Dark"
+  case iceCubeNeonLight   = "Ice Cube Neon - Light"
+  case desertDark         = "Desert - Dark"
+  case desertLight        = "Desert - Light"
+  case nemesisDark        = "Nemesis - Dark"
+  case nemesisLight       = "Nemesis - Light"
+  case mediumLight        = "Medium - Light"
+  case mediumDark         = "Medium - Dark"
+  case constellationLight = "Constellation - Light"
+  case constellationDark  = "Constellation - Dark"
+  case threadsLight       = "Threads - Light"
+  case threadsDark        = "Threads - Dark"
+}
+```
+
+The sets are organized into 7 dark/light pairs via `ColorSetCouple`:
+
+```swift
+public struct ColorSetCouple: Identifiable, Sendable {
+  public let light: ColorSet
+  public let dark: ColorSet
+}
+
+public let availableColorsSets: [ColorSetCouple] = [
+  .init(light: IceCubeLight(),       dark: IceCubeDark()),
+  .init(light: IceCubeNeonLight(),   dark: IceCubeNeonDark()),
+  .init(light: DesertLight(),        dark: DesertDark()),
+  .init(light: NemesisLight(),       dark: NemesisDark()),
+  .init(light: MediumLight(),        dark: MediumDark()),
+  .init(light: ConstellationLight(), dark: ConstellationDark()),
+  .init(light: ThreadsLight(),       dark: ThreadsDark()),
+]
+```
+
+**Example — the default dark set:**
+
+```swift
+public struct IceCubeDark: ColorSet {
+  public var name: ColorSetName = .iceCubeDark
+  public var scheme: ColorScheme = .dark
+  public var tintColor: Color = .init(red: 187/255, green: 59/255, blue: 226/255)
+  public var primaryBackgroundColor: Color = .init(red: 16/255, green: 21/255, blue: 35/255)
+  public var secondaryBackgroundColor: Color = .init(red: 30/255, green: 35/255, blue: 62/255)
+  public var labelColor: Color = .white
+}
+```
+
+`Theme.allColorSet` returns a flat `[ColorSet]` array of all 14 instances, which the settings screen uses for the color-picker grid.
+
+---
+
+## Font system
+
+The `FontState` enum lists the fonts a user can choose:
+
+```swift
+public enum FontState: Int, CaseIterable {
+  case system        // SF Pro (default)
+  case openDyslexic  // accessibility-optimized
+  case hyperLegible  // designed for low vision
+  case SFRounded     // SF Rounded
+  case custom        // any font from the system font picker
+}
+```
+
+`Theme.chosenFont` holds the active `UIFont?`. When `FontState.custom` is selected, the font is archived with `NSKeyedArchiver` and stored as `Data` in `UserDefaults` under the `"chosen_font"` key. Font size scaling is controlled separately by `fontSizeScale` (default `1.0`).
+
+---
+
+## Display style enums
+
+### StatusActionsDisplay
+
+Controls whether engagement buttons (favourite, reblog, etc.) are shown:
+
+```swift
+public enum StatusActionsDisplay: String, CaseIterable {
+  case full     // icons + counters
+  case discret  // icons only
+  case none     // hidden
+}
+```
+
+### StatusDisplayStyle
+
+Controls the density of status cells in the timeline:
+
+```swift
+public enum StatusDisplayStyle: String, CaseIterable {
+  case large    // full media, full text
+  case medium
+  case compact  // reduced padding and avatar size
+}
+```
+
+### AvatarPosition / AvatarShape
+
+```swift
+public enum AvatarPosition: String, CaseIterable { case leading, top }
+public enum AvatarShape: String, CaseIterable    { case circle, rounded }
+```
+
+### StatusActionSecondary
+
+The secondary action slot in the status toolbar (long-hold or dedicated button):
+
+```swift
+public enum StatusActionSecondary: String, CaseIterable { case share, bookmark }
+```
+
+---
+
+## Theme properties reference
+
+| Property | Type | Default | Persisted key |
+|---|---|---|---|
+| `tintColor` | `Color` | from set | `tint` |
+| `primaryBackgroundColor` | `Color` | from set | `primaryBackground` |
+| `secondaryBackgroundColor` | `Color` | from set | `secondaryBackground` |
+| `labelColor` | `Color` | from set | `label` |
+| `contrastingTintColor` | `Color` | computed | — |
+| `selectedSet` | `ColorSetName` | `.iceCubeDark` | `selectedSet` |
+| `selectedScheme` | `ColorScheme` | `.dark` | `selectedScheme` |
+| `followSystemColorScheme` | `Bool` | `true` | `followSystemColorSchme` |
+| `avatarPosition` | `AvatarPosition` | `.leading` | `avatarPosition2` |
+| `avatarShape` | `AvatarShape` | `.circle` | `avatarShape2` |
+| `avatarAnimated` | `Bool` | `true` | `avatarAnimated` |
+| `statusActionsDisplay` | `StatusActionsDisplay` | `.full` | `statusActionsDisplay` |
+| `statusDisplayStyle` | `StatusDisplayStyle` | `.large` | `statusDisplayStyle` |
+| `statusActionSecondary` | `StatusActionSecondary` | `.share` | `statusActionSecondary` |
+| `lineSpacing` | `Double` | `1.2` | `lineSpacing` |
+| `fontSizeScale` | `Double` | `1.0` | `font_size_scale` |
+| `displayFullUsername` | `Bool` | `false` | `displayFullUsernameTimeline` |
+| `compactLayoutPadding` | `Bool` | `true` | `compactLayoutPadding` |
+
+---
+
+## Using Theme in views
+
+`Theme` is injected via `.environment()` at the root of the SwiftUI hierarchy and consumed with `@Environment`:
+
+```swift
+struct MyView: View {
+  @Environment(Theme.self) private var theme
+
+  var body: some View {
+    Text("Hello")
+      .foregroundStyle(theme.labelColor)
+      .background(theme.primaryBackgroundColor)
+      .tint(theme.tintColor)
+  }
+}
+```
+
+<Note>
+Never initialize a second `Theme` instance. Always use `Theme.shared` or read the singleton from the environment.
+</Note>

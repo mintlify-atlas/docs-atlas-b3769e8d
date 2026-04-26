@@ -1,0 +1,115 @@
+---
+title: "Signing In to Mastodon with Ice Cubes"
+description: "Ice Cubes uses OAuth 2.0 via Apple's WebAuthenticationSession to authenticate with any Mastodon instance, keeping your credentials secure."
+---
+
+Ice Cubes authenticates with Mastodon using the standard OAuth 2.0 authorization code flow. The sign-in UI is handled entirely by Apple's `WebAuthenticationSession`, which opens a secure, isolated browser window managed by the operating system. Ice Cubes never handles your username or password — it only ever stores the OAuth access token that the server issues after you approve the request.
+
+## Step-by-step sign-in process
+
+<Steps>
+  <Step title="Open Settings → Add Account">
+    Tap your avatar in the tab bar (iPhone) or sidebar (iPad / Mac), then tap **Add account** to open the `AddAccountView`.
+  </Step>
+  <Step title="Browse or search for your instance">
+    The view queries the instances.social directory to show a live list of known servers. Scroll to find yours, tap a row to fill in the address, or type the domain directly. You can also paste a full `@username@instance.social` handle — Ice Cubes extracts the server part automatically.
+  </Step>
+  <Step title="Ice Cubes registers an OAuth app on the instance">
+    When you tap **Sign in**, Ice Cubes calls `MastodonClient.oauthURL()`. This posts to the instance's `POST /api/v1/apps` endpoint to register a new application and receives a client ID and secret. The authorization URL is then constructed with the `Oauth.authorize` endpoint.
+
+    ```swift
+    // MastodonClient.swift
+    public func oauthURL() async throws -> URL {
+        let app: InstanceApp = try await post(endpoint: Apps.registerApp)
+        critical.withLock { $0.oauthApp = app }
+        return try makeURL(endpoint: Oauth.authorize(clientId: app.clientId))
+    }
+    ```
+  </Step>
+  <Step title="Apple's WebAuthenticationSession handles the sign-in">
+    The authorization URL is passed to `webAuthenticationSession.authenticate(using:callbackURLScheme:)`. iOS or macOS opens a secure in-process browser session. You enter your credentials on your Mastodon server's own sign-in page. Ice Cubes does not have access to that browser session or the credentials you type. On success the server redirects to the Ice Cubes URL scheme with an authorization code.
+
+    ```swift
+    // AddAccountsView.swift
+    private func signIn() async {
+        signInClient = .init(server: sanitizedName)
+        if let oauthURL = try? await signInClient?.oauthURL(),
+           let url = try? await webAuthenticationSession.authenticate(
+               using: oauthURL,
+               callbackURLScheme: AppInfo.scheme.replacingOccurrences(of: "://", with: ""))
+        {
+            await continueSignIn(url: url)
+        }
+    }
+    ```
+  </Step>
+  <Step title="Token exchanged and stored in Keychain">
+    Ice Cubes calls `MastodonClient.continueOauthFlow(url:)` with the callback URL. It extracts the authorization code and exchanges it for an access token via `POST /oauth/token`. The resulting `OauthToken` is immediately saved to the iOS Keychain.
+
+    ```swift
+    // MastodonClient.swift
+    public func continueOauthFlow(url: URL) async throws -> OauthToken {
+        guard let app = critical.withLock({ $0.oauthApp }) else {
+            throw OauthError.missingApp
+        }
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let code = components.queryItems?.first(where: { $0.name == "code" })?.value
+        else {
+            throw OauthError.invalidRedirectURL
+        }
+        let token: OauthToken = try await post(
+            endpoint: Oauth.token(
+                code: code,
+                clientId: app.clientId,
+                clientSecret: app.clientSecret))
+        critical.withLock { $0.oauthToken = token }
+        return token
+    }
+    ```
+
+    The `AppAccount` object is then saved to the Keychain and added to `AppAccountsManager.availableAccounts`.
+  </Step>
+</Steps>
+
+## What Ice Cubes can access
+
+The OAuth scopes Ice Cubes requests are defined by `AppInfo.scopes`. The app does not request any scopes beyond what is needed to read and post on your behalf. Ice Cubes does not collect or process personal information. Each Mastodon server is a third-party service with its own privacy policy, accessible through the server's website or within the app.
+
+<Info>
+Ice Cubes uses TelemetryDeck to collect anonymized, non-personally-identifiable usage statistics. This cannot be linked back to you or your Mastodon account.
+</Info>
+
+## Signing out and revoking access
+
+To sign out, open **Account Settings** for the account you want to remove and tap **Sign out**. Ice Cubes:
+
+1. Cancels the push notification subscription on the server.
+2. Clears the local timeline cache for that account.
+3. Deletes the `AppAccount` entry and its OAuth token from the Keychain via `account.delete()`.
+
+To fully revoke Ice Cubes' access from the server side, visit **Preferences → Authorized Apps** on your Mastodon instance and revoke the Ice Cubes entry there.
+
+## OAuth endpoints
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/v1/apps` | Registers the Ice Cubes OAuth application |
+| `GET /oauth/authorize` | Redirects the user to the server's sign-in page |
+| `POST /oauth/token` | Exchanges the authorization code for an access token |
+
+The `Oauth` enum in `NetworkClient` models both steps of the code exchange:
+
+```swift
+// Endpoint/Oauth.swift
+public enum Oauth: Endpoint {
+    case authorize(clientId: String)
+    case token(code: String, clientId: String, clientSecret: String)
+}
+```
+
+## Security
+
+- **No password handling**: Ice Cubes never touches your Mastodon password. `WebAuthenticationSession` runs in a separate process controlled by the OS.
+- **Keychain storage**: Access tokens are stored with the `.accessibleAfterFirstUnlock` Keychain policy, making them available to the app and the notification extension after the device is first unlocked.
+- **No third-party auth servers**: The OAuth flow goes directly between Ice Cubes and your Mastodon instance. There is no Ice Cubes intermediary server involved in authentication.
+- **Token-only storage**: Only the `OauthToken` (access token, token type, scope, and creation timestamp) is persisted. Credentials never leave the `WebAuthenticationSession` boundary.

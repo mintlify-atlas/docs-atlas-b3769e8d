@@ -1,0 +1,110 @@
+---
+title: "Display Settings: Fonts, Spacing, and Layout"
+description: "Customize Ice Cubes' typography, avatar style, post density, line spacing, status action buttons, and more to match your reading preferences."
+---
+
+Ice Cubes exposes a rich set of display options in **Settings › Display** that let you shape how posts, avatars, and action buttons are rendered throughout the app. Every option is persisted via `@AppStorage` on the shared `Theme` instance and takes effect immediately without a restart.
+
+## Typography
+
+### Font
+
+The `Theme.FontState` enum lists the five font options available in the font picker:
+
+| Case | Font |
+|---|---|
+| `.system` | iOS system font (default) |
+| `.openDyslexic` | OpenDyslexic — improves readability for dyslexic readers |
+| `.hyperLegible` | Atkinson Hyperlegible — designed for low-vision readers |
+| `.SFRounded` | SF Rounded — rounded variant of the system font |
+| `.custom` | Opens a system font picker for any installed font |
+
+The chosen font is archived as `Data` and stored under the `chosen_font` key via `Theme.chosenFontData`. The resolved `UIFont` is available as `Theme.chosenFont`.
+
+### Font size scale
+
+A continuous slider in the range `0.5×`–`1.5×` (step `0.1`) maps to `Theme.fontSizeScale`, stored under the `font_size_scale` key. The default is `1.0`.
+
+### Line spacing
+
+Line spacing is stored as `Theme.lineSpacing` (key: `lineSpacing`). The slider runs from `0.4` to `10.0` in steps of `0.2`. The default is `1.2`.
+
+```swift
+Theme.shared.lineSpacing   // default: 1.2
+Theme.shared.fontSizeScale // default: 1.0
+```
+
+## Avatars
+
+### Position
+
+`Theme.AvatarPosition` controls where the avatar is placed relative to post text:
+
+| Case | Behavior |
+|---|---|
+| `.leading` | Avatar sits to the left of the post content (default) |
+| `.top` | Avatar sits above the post content |
+
+### Shape
+
+`Theme.AvatarShape` controls the avatar crop:
+
+| Case | Behavior |
+|---|---|
+| `.circle` | Circular crop (default) |
+| `.rounded` | Rounded-rectangle crop |
+
+### Animated avatars
+
+`Theme.avatarAnimated` (key: `avatarAnimated`, default `true`) controls whether animated GIF avatars play. Disable to reduce motion and battery usage.
+
+## Post display style
+
+`Theme.StatusDisplayStyle` sets the overall density of the post layout:
+
+| Case | Description |
+|---|---|
+| `.large` | Full-size media and full post body (default) |
+| `.medium` | Reduced media size |
+| `.compact` | Compact row height; shows less content per post |
+
+```swift
+Theme.shared.statusDisplayStyle = .compact
+```
+
+## Status action buttons
+
+### Actions display mode
+
+`Theme.StatusActionsDisplay` controls which interactive buttons appear beneath each post:
+
+| Case | Description |
+|---|---|
+| `.full` | All action buttons with labels (default) |
+| `.discret` | Icon-only buttons, no labels |
+| `.none` | Action buttons hidden entirely |
+
+### Secondary action button
+
+`Theme.StatusActionSecondary` lets you swap the secondary slot between two actions:
+
+| Case | Button shown |
+|---|---|
+| `.share` | Share sheet (default) |
+| `.bookmark` | Bookmark toggle |
+
+```swift
+Theme.shared.statusActionsDisplay   = .discret
+Theme.shared.statusActionSecondary  = .bookmark
+```
+
+## Additional layout options
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `compactLayoutPadding` | `Bool` | `true` | Tightens horizontal padding in compact layout |
+| `displayFullUsername` | `Bool` | `false` | Shows `@user@instance` instead of just `@user` in the timeline |
+
+<Tip>
+Call `Theme.shared.restoreDefault()` to reset every display setting back to its default value in one step.
+</Tip>

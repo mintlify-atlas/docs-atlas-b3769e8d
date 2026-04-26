@@ -1,0 +1,388 @@
+---
+title: "Env Package: App State and Dependency Injection"
+description: "The Env package provides environment objects for routing, account state, preferences, streaming, and push notifications using @Observable."
+---
+
+The `Env` package is the connective tissue of Ice Cubes. It holds every piece of app-wide mutable state that more than one feature package needs to read or write. Each service is an `@Observable` singleton that is set as a SwiftUI environment object at the root scene and consumed in any child view with `@Environment`. This avoids ViewModels for shared concerns: views read state directly and call methods on the service objects.
+
+## RouterPath
+
+`RouterPath` manages the active navigation stack and the currently presented sheet. It is `@MainActor @Observable` and holds a reference to `MastodonClient` so it can resolve URLs to typed destinations.
+
+```swift
+@MainActor
+@Observable public class RouterPath {
+  public var client: MastodonClient?
+  public var urlHandler: ((URL) -> OpenURLAction.Result)?
+
+  public var path: [RouterDestination] = []
+  public var presentedSheet: SheetDestination?
+
+  public func navigate(to: RouterDestination)
+  public func handle(url: URL) -> OpenURLAction.Result
+  public func handleStatus(status: AnyStatus, url: URL) -> OpenURLAction.Result
+  public func handleDeepLink(url: URL) -> OpenURLAction.Result
+}
+```
+
+### RouterDestination
+
+Every screen in the app maps to a case of `RouterDestination`:
+
+```swift
+public enum RouterDestination: Hashable {
+  case accountDetail(id: String)
+  case accountDetailWithAccount(account: Account)
+  case accountSettingsWithAccount(account: Account, appAccount: AppAccount)
+  case accountMediaGridView(account: Account, initialMediaStatuses: [MediaStatus])
+  case statusDetail(id: String)
+  case statusDetailWithStatus(status: Status)
+  case remoteStatusDetail(url: URL)
+  case conversationDetail(conversation: Conversation)
+  case hashTag(tag: String, account: String?)
+  case list(list: Models.List)
+  case followers(id: String)
+  case following(id: String)
+  case favoritedBy(id: String)
+  case rebloggedBy(id: String)
+  case quotes(id: String)
+  case accountsList(accounts: [Account])
+  case trendingTimeline
+  case linkTimeline(url: URL, title: String)
+  case trendingLinks(cards: [Card])
+  case tagsList(tags: [Tag])
+  case notificationsRequests
+  case notificationForAccount(accountId: String)
+  case blockedAccounts
+  case mutedAccounts
+  case conversations
+  case instanceInfo(instance: Instance)
+  case metrics
+}
+```
+
+### SheetDestination
+
+Modally-presented screens use `SheetDestination`. The `id` property ensures SwiftUI only shows one sheet at a time—multiple cases that logically share a sheet return the same `id` string (e.g. all status editor variants return `"statusEditor"`).
+
+```swift
+public enum SheetDestination: Identifiable, Hashable {
+  case newStatusEditor(visibility: Models.Visibility)
+  case editStatusEditor(status: Status)
+  case replyToStatusEditor(status: Status)
+  case quoteStatusEditor(status: Status)
+  case mentionStatusEditor(account: Account, visibility: Models.Visibility)
+  case listCreate
+  case listEdit(list: Models.List)
+  case settings
+  case report(status: Status)
+  case shareImage(image: UIImage, status: Status)
+  // ...and more
+}
+```
+
+---
+
+## CurrentAccount
+
+`CurrentAccount` is an `@Observable` singleton that tracks the authenticated user's account data, lists, followed tags, and pending follow requests.
+
+```swift
+@MainActor
+@Observable public class CurrentAccount {
+  public static let shared = CurrentAccount()
+
+  public private(set) var account: Account?
+  public private(set) var lists: [List] = []
+  public private(set) var tags: [Tag] = []
+  public private(set) var followRequests: [Account] = []
+  public private(set) var isUpdating: Bool = false
+  public private(set) var isLoadingAccount: Bool = false
+
+  public var sortedLists: [List]   // alphabetically sorted
+  public var sortedTags: [Tag]     // alphabetically sorted
+
+  public func setClient(client: MastodonClient)
+  public func fetchCurrentAccount() async
+  public func fetchLists() async
+  public func fetchFollowedTags() async
+  public func fetchFollowerRequests() async
+  public func followTag(id: String) async -> Tag?
+  public func unfollowTag(id: String) async -> Tag?
+  public func deleteList(_ list: Models.List) async
+  public func acceptFollowerRequest(id: String) async
+  public func rejectFollowerRequest(id: String) async
+}
+```
+
+Call `setClient(_:)` when the user switches accounts. `CurrentAccount` immediately triggers a parallel fetch of credentials, connections, lists, followed tags, and follow requests via a `TaskGroup`.
+
+---
+
+## UserPreferences
+
+`UserPreferences` is an `@Observable` singleton that holds every user-facing preference. Preferences are persisted to `UserDefaults` through an inner `Storage` class whose properties use `@AppStorage`. A shared `UserDefaults` suite (`group.com.thomasricouard.IceCubesApp`) makes notification counts available to app extensions.
+
+```swift
+@MainActor
+@Observable public class UserPreferences {
+  public static let shared = UserPreferences()
+  public static let sharedDefault = UserDefaults(
+    suiteName: "group.com.thomasricouard.IceCubesApp"
+  )
+
+  // Browser
+  public var preferredBrowser: PreferredBrowser       // .inAppSafari | .safari | ...
+  public var inAppBrowserReaderView: Bool
+
+  // Posting defaults
+  public var appDefaultPostVisibility: Models.Visibility
+  public var appDefaultReplyVisibility: Models.Visibility
+  public var appDefaultPostsSensitive: Bool
+  public var appRequireAltText: Bool
+  public var autoDetectPostLanguage: Bool
+
+  // Content display
+  public var appAutoExpandSpoilers: Bool
+  public var appAutoExpandMedia: ServerPreferences.AutoExpandMedia
+  public var useInstanceContentSettings: Bool
+  public var collapseLongPosts: Bool
+  public var showAltTextForMedia: Bool
+
+  // Media playback
+  public var autoPlayVideo: Bool
+  public var muteVideo: Bool
+  public var animateEmojis: Bool
+
+  // Timeline
+  public var streamHomeTimeline: Bool
+  public var fullTimelineFetch: Bool
+  public var showReplyIndentation: Bool
+  public var maxReplyIndentation: UInt
+
+  // Translation
+  public var preferredTranslationType: TranslationType
+  public var userDeeplAPIFree: Bool
+  public var showTranslateButton: Bool
+
+  // Haptic / sound
+  public var hapticTabSelectionEnabled: Bool
+  public var hapticTimelineEnabled: Bool
+  public var hapticButtonPressEnabled: Bool
+  public var soundEffectEnabled: Bool
+
+  // Swipe actions
+  public var swipeActionsStatusTrailingRight: StatusAction
+  public var swipeActionsStatusTrailingLeft: StatusAction
+  public var swipeActionsStatusLeadingLeft: StatusAction
+  public var swipeActionsStatusLeadingRight: StatusAction
+  public var swipeActionsUseThemeColor: Bool
+  public var swipeActionsIconStyle: SwipeActionsIconStyle  // .iconWithText | .iconOnly
+
+  // Server preferences (fetched, not persisted)
+  public var serverPreferences: ServerPreferences?
+  public func setClient(client: MastodonClient)
+  public func refreshServerPreferences() async
+}
+```
+
+`postVisibility` and `autoExpandSpoilers` merge server preferences with local overrides depending on `useInstanceContentSettings`.
+
+---
+
+## StreamWatcher
+
+`StreamWatcher` maintains a single WebSocket connection to the Mastodon streaming API and publishes decoded events to observers.
+
+```swift
+@MainActor
+@Observable public class StreamWatcher {
+  public static let shared = StreamWatcher()
+
+  public var events: [any StreamEvent] = []
+  public var latestEvent: (any StreamEvent)?
+
+  public enum Stream: String {
+    case federated = "public"
+    case local
+    case user
+    case direct
+  }
+
+  public func setClient(client: MastodonClient, instanceStreamingURL: URL?)
+  public func watch(streams: [Stream])
+  public func stopWatching()
+
+  // Emit synthetic events (e.g. after a local action)
+  public func emmitDeleteEvent(for status: String)
+  public func emmitEditEvent(for status: Status)
+  public func emmitPostEvent(for status: Status)
+}
+```
+
+Calling `watch(streams:)` sends a `subscribe` message over the WebSocket for each stream. `StreamWatcher` decodes incoming messages on a private actor (`StreamEventDecoder`) to avoid blocking the main thread, then publishes the result back to `@MainActor`. On connection failure it retries with exponential back-off (10 s initial, +30 s per attempt).
+
+The supported event types decoded from the stream are:
+
+| Event type | Payload |
+|---|---|
+| `update` | New `Status` posted |
+| `status.update` | Existing `Status` edited |
+| `delete` | Status deleted (ID string) |
+| `notification` | New `Notification` |
+| `conversation` | Updated `Conversation` |
+
+---
+
+## PushNotificationsService
+
+`PushNotificationsService` handles APNS token registration, per-account Web Push subscription management via the Ice Cubes relay, and foreground notification routing.
+
+```swift
+@MainActor
+@Observable public class PushNotificationsService: NSObject {
+  public static let shared = PushNotificationsService()
+
+  public private(set) var subscriptions: [PushNotificationSubscriptionSettings] = []
+  public var pushToken: Data?
+  public var handledNotification: HandledNotification?
+  public var tokens: [OauthToken] = []
+
+  public func requestPushNotifications()
+  public func setAccounts(accounts: [PushAccount])
+  public func updateSubscriptions(forceCreate: Bool) async
+}
+```
+
+Push keys (P-256 key pair and auth secret) are generated on first use and stored in the Keychain via `PushKeys`. Subscriptions route through `https://icecubesrelay.fly.dev/push/<APNs-token>/<account-name>` so the relay can decrypt and forward encrypted push payloads.
+
+`PushNotificationSubscriptionSettings` manages the enable/disable state and per-type alert toggles for a single account:
+
+```swift
+@MainActor
+@Observable public class PushNotificationSubscriptionSettings {
+  public var isEnabled: Bool
+  public var isFollowNotificationEnabled: Bool
+  public var isFavoriteNotificationEnabled: Bool
+  public var isReblogNotificationEnabled: Bool
+  public var isMentionNotificationEnabled: Bool
+  public var isPollNotificationEnabled: Bool
+  public var isNewPostsNotificationEnabled: Bool
+
+  public func fetchSubscription() async
+  public func updateSubscription() async
+  public func deleteSubscription() async
+}
+```
+
+---
+
+## HapticManager
+
+`HapticManager` wraps UIKit's feedback generators behind a single `fireHaptic(_:)` call, gating each type on the user's preferences.
+
+```swift
+@MainActor
+public class HapticManager {
+  public static let shared: HapticManager = .init()
+
+  public enum HapticType {
+    case buttonPress
+    case dataRefresh(intensity: CGFloat)
+    case notification(_ type: UINotificationFeedbackGenerator.FeedbackType)
+    case tabSelection
+    case timeline
+  }
+
+  public func fireHaptic(_ type: HapticType)
+  public var supportsHaptics: Bool
+}
+```
+
+---
+
+## SoundEffectManager
+
+`SoundEffectManager` plays short WAV sound effects using `AudioServicesPlaySystemSound`. Sound IDs are registered once at init time from the main bundle.
+
+```swift
+@MainActor
+public class SoundEffectManager {
+  public static let shared: SoundEffectManager = .init()
+
+  public enum SoundEffect: String, CaseIterable {
+    case pull, refresh, tootSent, tabSelection,
+         bookmark, boost, favorite, share
+  }
+
+  public func playSound(_ effect: SoundEffect)
+}
+```
+
+---
+
+## ToastCenter
+
+`ToastCenter` shows a single in-app toast notification at a time. A new `show` call replaces the current toast. Toasts can be plain messages, progress indicators, or task-wrapped operations that automatically show success/failure states.
+
+```swift
+@MainActor
+@Observable public final class ToastCenter {
+  public static let shared = ToastCenter()
+
+  public var toast: Toast?
+
+  public func show(_ toast: Toast, autoDismissAfter: Swift.Duration? = nil) -> UUID
+  public func showProgress(title: String, ...) -> UUID
+  public func showTask(
+    title: String,
+    task: @escaping @Sendable () async throws -> Void,
+    successToast: Toast?,
+    failureToast: ((Error) -> Toast)?
+  )
+  public func update(id: UUID, toast: Toast, autoDismissAfter: Swift.Duration?)
+  public func updateProgress(id: UUID, progress: Double)
+  public func dismiss(id: UUID?)
+}
+```
+
+---
+
+## Dependency injection pattern
+
+All Env services follow the same pattern: they are initialized once as singletons, inserted into the SwiftUI environment at the app level, and read in any descendant view.
+
+```swift
+// App root
+struct IceCubesApp: App {
+  @State private var router = RouterPath()
+  @State private var currentAccount = CurrentAccount.shared
+  @State private var preferences = UserPreferences.shared
+  @State private var streamWatcher = StreamWatcher.shared
+
+  var body: some Scene {
+    WindowGroup {
+      ContentView()
+        .environment(router)
+        .environment(currentAccount)
+        .environment(preferences)
+        .environment(streamWatcher)
+    }
+  }
+}
+
+// Consumer view
+struct TimelineView: View {
+  @Environment(RouterPath.self) private var router
+  @Environment(CurrentAccount.self) private var account
+  @Environment(UserPreferences.self) private var preferences
+
+  var body: some View {
+    // ...
+  }
+}
+```
+
+<Note>
+Do not nest `@Observable` service objects inside other `@Observable` objects. Nesting breaks SwiftUI's change-tracking. Initialize services at the scene or view level and pass them as separate `.environment()` modifiers.
+</Note>

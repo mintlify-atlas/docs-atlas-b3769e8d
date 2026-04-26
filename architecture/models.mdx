@@ -1,0 +1,258 @@
+---
+title: "Models Package: Mastodon Data Structures"
+description: "The Models package defines all Mastodon entity types used across Ice Cubes: Status, Account, Notification, Poll, MediaAttachment, and more."
+---
+
+The `Models` package is the shared data layer of Ice Cubes. It contains Swift representations of every Mastodon API entity, plus a small set of SwiftData models for local persistence. All types conform to `Codable` (or `Decodable`) using the `.convertFromSnakeCase` decoding strategy configured on `MastodonClient`'s `JSONDecoder`, so field names map from JSON snake_case to Swift camelCase automatically. Every public type is `Sendable`, enabling safe use across Swift concurrency boundaries.
+
+## Key model types
+
+| Type | Description |
+|---|---|
+| `Status` / `ReblogStatus` | A Mastodon post and its reblog variant |
+| `Account` | A Mastodon user account |
+| `Notification` | A single notification event |
+| `ConsolidatedNotification` | A grouped set of related notifications |
+| `GroupedNotificationsResults` | Response envelope for the v2 grouped notifications API |
+| `MediaAttachment` | Image, video, gifv, or audio attachment |
+| `Poll` | An active or closed poll attached to a status |
+| `Tag` | A hashtag with usage history |
+| `Models.List` | A user-managed list |
+| `Card` | A link preview card |
+| `Filter` / `Filtered` | Server-side content filter and match result |
+| `Conversation` | A direct-message conversation thread |
+| `Mention` | An @-mention within a status |
+| `Emoji` | A custom instance emoji |
+| `Relationship` | The follow/block/mute relationship between two accounts |
+| `Instance` | Metadata about a Mastodon instance |
+| `OauthToken` | An OAuth 2 access token |
+| `Translation` | A translated status body |
+| `Quote` / `QuoteApproval` | A quoted-post reference and its approval state |
+| `SearchResults` | Accounts, statuses, and tags returned by search |
+
+---
+
+## Status
+
+`Status` is the central entity in Ice Cubes. It conforms to the `AnyStatus` protocol, which defines the shared interface used by both `Status` and `ReblogStatus`.
+
+```swift
+public protocol AnyStatus {
+  var id: String { get }
+  var content: HTMLString { get }
+  var account: Account { get }
+  var createdAt: ServerDate { get }
+  var editedAt: ServerDate? { get }
+  var mediaAttachments: [MediaAttachment] { get }
+  var mentions: [Mention] { get }
+  var repliesCount: Int { get }
+  var reblogsCount: Int { get }
+  var quotesCount: Int? { get }
+  var favouritesCount: Int { get }
+  var card: Card? { get }
+  var favourited: Bool? { get }
+  var reblogged: Bool? { get }
+  var pinned: Bool? { get }
+  var bookmarked: Bool? { get }
+  var emojis: [Emoji] { get }
+  var url: String? { get }
+  var application: Application? { get }
+  var inReplyToId: String? { get }
+  var inReplyToAccountId: String? { get }
+  var visibility: Visibility { get }
+  var poll: Poll? { get }
+  var spoilerText: HTMLString { get }
+  var filtered: [Filtered]? { get }
+  var sensitive: Bool { get }
+  var language: String? { get }
+  var tags: [Tag] { get }
+  var isHidden: Bool { get }
+  var quote: Quote? { get }
+  var quoteApproval: QuoteApproval? { get }
+}
+```
+
+`Status` adds one field that `ReblogStatus` does not have: the nested `reblog` property that holds the original post when this status is a boost.
+
+```swift
+public final class Status: AnyStatus, Codable, Identifiable, Equatable, Hashable, Sendable {
+  public let id: String
+  public let content: HTMLString
+  public let account: Account
+  public let createdAt: ServerDate
+  public let editedAt: ServerDate?
+  public let reblog: ReblogStatus?        // present when this status is a boost
+  public let mediaAttachments: [MediaAttachment]
+  public let mentions: [Mention]
+  public let repliesCount: Int
+  public let reblogsCount: Int
+  public let quotesCount: Int?
+  public let favouritesCount: Int
+  public let card: Card?
+  public let favourited: Bool?
+  public let reblogged: Bool?
+  public let pinned: Bool?
+  public let bookmarked: Bool?
+  public let emojis: [Emoji]
+  public let url: String?
+  public let application: Application?
+  public let inReplyToId: String?
+  public let inReplyToAccountId: String?
+  public let visibility: Visibility
+  public let poll: Poll?
+  public let spoilerText: HTMLString
+  public let filtered: [Filtered]?
+  public let sensitive: Bool
+  public let language: String?
+  public let tags: [Tag]
+  public let quote: Quote?
+  public let quoteApproval: QuoteApproval?
+}
+```
+
+`Visibility` controls audience reach and is encoded as a raw string in the JSON:
+
+```swift
+public enum Visibility: String, Codable, CaseIterable, Hashable, Equatable, Sendable {
+  case pub = "public"
+  case unlisted
+  case priv = "private"
+  case direct
+}
+```
+
+The convenience property `isHidden` returns `true` when any attached filter has the `.hide` action. `reblogAsAsStatus` re-wraps a `ReblogStatus` as a full `Status` for unified rendering.
+
+---
+
+## Account
+
+`Account` represents a Mastodon user. All fields are immutable after decoding, making the type `Sendable` without any locking.
+
+```swift
+public final class Account: Codable, Identifiable, Hashable, Sendable, Equatable {
+  public let id: String
+  public let username: String
+  public let displayName: String?
+  public let cachedDisplayName: HTMLString   // parsed from displayName or "@username"
+  public let avatar: URL
+  public let header: URL
+  public let acct: String                    // "user" or "user@remote.host"
+  public let note: HTMLString
+  public let createdAt: ServerDate
+  public let followersCount: Int?
+  public let followingCount: Int?
+  public let statusesCount: Int?
+  public let lastStatusAt: String?
+  public let fields: [Field]
+  public let locked: Bool
+  public let emojis: [Emoji]
+  public let url: URL?
+  public let source: Source?
+  public let bot: Bool
+  public let discoverable: Bool?
+  public let moved: Account?                 // set when the account has migrated
+}
+```
+
+`Account.Field` carries optional verification data:
+
+```swift
+public struct Field: Codable, Equatable, Identifiable, Sendable {
+  public let name: String
+  public let value: HTMLString
+  public let verifiedAt: String?
+}
+```
+
+`Account.Source` is returned only from `Accounts.verifyCredentials` and contains the authenticated user's private post defaults:
+
+```swift
+public struct Source: Codable, Equatable, Sendable {
+  public let privacy: Visibility?
+  public let sensitive: Bool
+  public let language: String?
+  public let note: String
+  public let fields: [Field]
+}
+```
+
+---
+
+## Notification
+
+```swift
+public struct Notification: Decodable, Identifiable, Equatable, Sendable {
+  public enum NotificationType: String, CaseIterable, Sendable {
+    case follow, follow_request, mention, reblog, status,
+         favourite, poll, update, quote, quoted_update
+  }
+
+  public let id: String
+  public let type: String           // raw string from server
+  public let createdAt: ServerDate
+  public let account: Account       // account that triggered the event
+  public let status: Status?        // present for mention, reblog, favourite, etc.
+  public let groupKey: String?      // v2 API group identifier
+
+  /// Typed representation of `type`, or nil for unknown server-side types.
+  public var supportedType: NotificationType? { .init(rawValue: type) }
+}
+```
+
+### ConsolidatedNotification
+
+`ConsolidatedNotification` aggregates multiple `Notification` values of the same type (e.g. several people favouriting the same status) into a single display unit.
+
+```swift
+public struct ConsolidatedNotification: Identifiable, Sendable {
+  public let notifications: [Notification]
+  public let type: Notification.NotificationType
+  public let createdAt: ServerDate
+  public let accounts: [Account]
+  public let status: Status?
+  public let mostRecentNotificationId: String
+  public var groupKey: String?          // v2 API group key when available
+
+  public var id: String { groupKey ?? mostRecentNotificationId }
+}
+```
+
+### GroupedNotificationsResults
+
+The Mastodon v2 grouped notifications endpoint returns a single envelope that avoids duplicating account and status data:
+
+```swift
+public struct GroupedNotificationsResults: Codable, Sendable {
+  public let accounts: [Account]
+  public let statuses: [Status]
+  public let notificationGroups: [NotificationGroup]
+}
+```
+
+`NotificationGroup` references accounts and statuses by ID, reducing payload size when many accounts interact with the same post.
+
+---
+
+## SwiftData models
+
+The `SwiftData/` subdirectory contains locally persisted models:
+
+| Model | Fields | Purpose |
+|---|---|---|
+| `Draft` | `content`, `creationDate` | Saved post drafts |
+| `TagGroup` | `title`, `symbolName`, `tags`, `creationDate` | Named hashtag groups for the sidebar |
+| `LocalTimeline` | server, filter fields | Saved remote local timelines |
+| `RecentTag` | `title`, `creationDate` | Recently visited hashtags |
+| `MetricsNotificationGroup` | group data | Metrics for notification groups |
+
+These models use the `@Model` macro from SwiftData and are managed by a shared `ModelContainer` configured in the app target.
+
+---
+
+## Codable conventions
+
+- **Snake-case decoding**: `MastodonClient` configures its `JSONDecoder` with `.convertFromSnakeCase`, so `created_at` in JSON maps to `createdAt` in Swift.
+- **Custom `CodingKeys`**: `Account` defines explicit `CodingKeys` and implements `init(from:)` manually to synthesize `cachedDisplayName` at decode time without a separate mutation step.
+- **`HTMLString`**: Rich-text fields like `content`, `note`, and `spoilerText` are decoded as `HTMLString`, a custom type that stores both the raw HTML and a pre-parsed `AttributedString`.
+- **`ServerDate`**: All date fields use `ServerDate`, a custom `Codable` wrapper that handles the ISO 8601 strings returned by Mastodon servers, including variants with and without fractional seconds.

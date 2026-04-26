@@ -1,0 +1,274 @@
+---
+title: "NetworkClient Package: Mastodon API Layer"
+description: "The NetworkClient package wraps the Mastodon REST and streaming APIs, plus DeepL translation and OpenAI integrations, using async/await."
+---
+
+The `NetworkClient` package is the single point of contact between Ice Cubes and every remote service it talks to. It contains `MastodonClient`, the core HTTP and WebSocket client for the Mastodon API; a structured `Endpoint` protocol that every API group conforms to; and lightweight wrappers for DeepL translation and OpenAI vision. All network calls are `async/await`, all types are `Sendable`, and JSON decoding uses `.convertFromSnakeCase` so the model layer never has to deal with raw snake_case keys.
+
+## MastodonClient
+
+`MastodonClient` is the central class of the package. It is marked `@Observable` so SwiftUI views can observe its state, and it conforms to `Sendable` by protecting all mutable state behind an `OSAllocatedUnfairLock`.
+
+```swift
+@Observable
+public final class MastodonClient: Equatable, Identifiable, Hashable, Sendable {
+  public let server: String
+  public let version: Version
+
+  public var isAuth: Bool { critical.withLock { $0.oauthToken != nil } }
+  public var connections: Set<String> { critical.withLock { $0.connections } }
+
+  public init(server: String, version: Version = .v1, oauthToken: OauthToken? = nil)
+}
+```
+
+The `Version` enum controls which API path prefix is used:
+
+```swift
+public enum Version: String, Sendable {
+  case v1, v2
+}
+```
+
+### HTTP methods
+
+Every method accepts an `Endpoint` value and returns a generic `Decodable` type decoded from the response body.
+
+```swift
+// Fetch a decodable entity
+public func get<Entity: Decodable>(
+  endpoint: Endpoint,
+  forceVersion: Version? = nil
+) async throws -> Entity
+
+// Post and decode the response body
+public func post<Entity: Decodable>(
+  endpoint: Endpoint,
+  forceVersion: Version? = nil
+) async throws -> Entity
+
+// Post without decoding (returns HTTP status only)
+public func post(
+  endpoint: Endpoint,
+  forceVersion: Version? = nil
+) async throws -> HTTPURLResponse?
+
+// Patch (returns HTTP status only)
+public func patch(endpoint: Endpoint) async throws -> HTTPURLResponse?
+
+// Put and decode the response body
+public func put<Entity: Decodable>(
+  endpoint: Endpoint,
+  forceVersion: Version? = nil
+) async throws -> Entity
+
+// Delete (returns HTTP status only)
+public func delete(
+  endpoint: Endpoint,
+  forceVersion: Version? = nil
+) async throws -> HTTPURLResponse?
+```
+
+### Paginated responses
+
+`getWithLink` returns both the decoded entity and an optional `LinkHandler` parsed from the HTTP `Link` response header. Callers use `LinkHandler.maxId` to load the next page.
+
+```swift
+public func getWithLink<Entity: Decodable>(
+  endpoint: Endpoint
+) async throws -> (Entity, LinkHandler?)
+```
+
+### Media upload
+
+Two overloads exist for each upload variant—one that returns a decoded entity and one that returns only the HTTP response. The overload that accepts a `progressHandler` closure reports upload progress via `URLSessionTaskDelegate`.
+
+```swift
+// Upload and decode result, with progress reporting
+public func mediaUpload<Entity: Decodable>(
+  endpoint: Endpoint,
+  version: Version,
+  method: String,
+  mimeType: String,
+  filename: String,
+  data: Data,
+  progressHandler: @escaping @Sendable (Double) -> Void
+) async throws -> Entity
+
+// Upload without decoding, with progress reporting
+public func mediaUpload(
+  endpoint: Endpoint,
+  version: Version,
+  method: String,
+  mimeType: String,
+  filename: String,
+  data: Data,
+  progressHandler: @escaping @Sendable (Double) -> Void
+) async throws -> HTTPURLResponse?
+```
+
+The progress value passed to `progressHandler` is a `Double` in `0.0...1.0`.
+
+### Streaming
+
+`makeWebSocketTask` returns a `URLSessionWebSocketTask` configured with the OAuth token as a WebSocket subprotocol. It uses the `wss://` scheme and optionally overrides the host with the instance's dedicated streaming URL.
+
+```swift
+public func makeWebSocketTask(
+  endpoint: Endpoint,
+  instanceStreamingURL: URL?
+) throws -> URLSessionWebSocketTask
+```
+
+### OAuth flow
+
+```swift
+// Step 1: get the authorization URL and register an app
+public func oauthURL() async throws -> URL
+
+// Step 2: exchange the redirect URL for a token
+public func continueOauthFlow(url: URL) async throws -> OauthToken
+```
+
+---
+
+## Endpoint protocol
+
+Every API group is an enum that conforms to the `Endpoint` protocol:
+
+```swift
+public protocol Endpoint: Sendable {
+  func path() -> String
+  func queryItems() -> [URLQueryItem]?
+  var jsonValue: Encodable? { get }
+}
+```
+
+`MastodonClient` constructs a URL by combining `https://<server>/api/<version>/<endpoint.path()>` with the query items. If `jsonValue` is non-nil the encoder serializes it as JSON in the request body with the `Content-Type: application/json` header.
+
+A shared extension on `Endpoint` provides a convenience helper for cursor-based pagination:
+
+```swift
+func makePaginationParam(
+  sinceId: String?,
+  maxId: String?,
+  mindId: String?
+) -> [URLQueryItem]?
+```
+
+### Available endpoint groups
+
+| Enum | Description |
+|---|---|
+| `Accounts` | Account lookup, credentials, follow/unfollow, block/mute, bookmarks |
+| `Apps` | OAuth app registration |
+| `Conversations` | Direct message conversations |
+| `CustomEmojis` | Instance custom emoji catalog |
+| `FollowRequests` | Pending follow request management |
+| `Instances` | Instance info, peers, rules |
+| `Lists` | User-managed lists |
+| `Markers` | Timeline read markers |
+| `Media` | Media attachment upload and update |
+| `Notifications` | Notification fetch and dismiss |
+| `Oauth` | Authorization and token endpoints |
+| `Polls` | Poll voting |
+| `Profile` | Profile deletion |
+| `Push` | Web Push subscription management |
+| `Search` | Full-text and account search |
+| `ServerFilters` | Server-side content filters |
+| `Statuses` | Post, edit, react, translate, report |
+| `Streaming` | WebSocket streaming endpoint |
+| `Tags` | Hashtag follow/unfollow |
+| `Timelines` | Home, public, list, hashtag, and link timelines |
+| `Trends` | Trending statuses, tags, and links |
+
+**Example — Timelines enum:**
+
+```swift
+public enum Timelines: Endpoint {
+  case pub(sinceId: String?, maxId: String?, minId: String?, local: Bool, limit: Int?)
+  case home(sinceId: String?, maxId: String?, minId: String?, limit: Int?)
+  case list(listId: String, sinceId: String?, maxId: String?, minId: String?)
+  case hashtag(tag: String, additional: [String]?, maxId: String?, minId: String?)
+  case link(url: URL, sinceId: String?, maxId: String?, minId: String?)
+}
+```
+
+**Example — posting a status:**
+
+```swift
+let status: Status = try await client.post(
+  endpoint: Statuses.postStatus(json: StatusData(
+    status: "Hello Mastodon!",
+    visibility: .pub
+  ))
+)
+```
+
+---
+
+## OpenAIClient
+
+`OpenAIClient` is a value type (`struct`) that routes requests through the Ice Cubes relay at `https://icecubesrelay.fly.dev/openai`, so the app never needs a raw OpenAI API key.
+
+```swift
+public struct OpenAIClient: Sendable {
+  public init()
+
+  public func request(_ prompt: Prompt) async throws -> Response
+}
+```
+
+The only supported prompt today is image description for alt-text generation:
+
+```swift
+public enum Prompt: Sendable {
+  case imageDescription(image: URL)
+}
+```
+
+The response exposes a trimmed text helper:
+
+```swift
+public struct Response: Decodable, Sendable {
+  public let choices: [Choice]
+  public var trimmedText: String   // first choice content, leading whitespace removed
+}
+```
+
+The underlying model is `gpt-4o-mini` with a `maxTokens` cap of 50, keeping responses brief and suitable for alt text.
+
+---
+
+## DeepLClient
+
+`DeepLClient` is a `Sendable` struct that calls the DeepL REST v2 translation API directly—either the paid endpoint (`api.deepl.com`) or the free tier (`api-free.deepl.com`), depending on the user's configuration.
+
+```swift
+public struct DeepLClient: Sendable {
+  public init(userAPIKey: String?, userAPIFree: Bool)
+
+  public func request(target: String, text: String) async throws -> Translation
+}
+```
+
+`target` is an ISO 639-1 language code (e.g. `"EN"`, `"FR"`). The method throws `DeepLError.notFound` when the response contains no translations.
+
+The returned `Translation` model (from the `Models` package) includes the translated text, detected source language, and the provider string `"DeepL.com"`.
+
+---
+
+## LinkHandler
+
+`LinkHandler` parses the `Link` HTTP response header to support cursor-based pagination.
+
+```swift
+public struct LinkHandler: Sendable {
+  public let rawLink: String
+
+  /// The `max_id` cursor extracted from the Link header, if present.
+  public var maxId: String? { ... }
+}
+```
+
+`getWithLink` returns a `LinkHandler?` alongside the decoded payload. Pass `linkHandler.maxId` as `maxId` on the next request to fetch the following page.
